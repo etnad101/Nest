@@ -38,7 +38,7 @@ impl Emulator {
 
         while self.running {
             cycles_this_frame += self.cpu.tick();
-            if cycles_this_frame > 100 {
+            if cycles_this_frame > 10000 {
                 self.running = false;
             }
         }

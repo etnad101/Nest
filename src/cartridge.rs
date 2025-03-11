@@ -45,7 +45,7 @@ impl Cartridge {
         let prg_rom_size = rom[PRG_ROM_SIZE_ADDR] as usize * PRG_ROM_CHUNK_SIZE;
         let chr_rom_size = rom[CHR_ROM_SIZE_ADDR] as usize * CHR_ROM_CHUNK_SIZE;
 
-        println!("prg rom size: {:06x}, chr rom size: {:06x}", prg_rom_size, chr_rom_size);
+        // println!("prg rom size: {:06x}, chr rom size: {:06x}", prg_rom_size, chr_rom_size);
 
         let prg_rom: Vec<u8> = (&rom[0x10..0x10 + prg_rom_size]).to_owned();
         let chr_rom: Vec<u8> = (&rom[0x10 + prg_rom_size..0x10 + chr_rom_size + prg_rom_size]).to_owned();

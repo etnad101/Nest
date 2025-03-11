@@ -34,7 +34,7 @@ pub struct Cpu {
     r_a: u8,
     r_x: u8,
     r_y: u8,
-    r_s: u8,
+    r_sp: u8,
     r_pc: u16,
 
     // flags
@@ -61,7 +61,7 @@ impl Cpu {
             r_a: 0,
             r_x: 0,
             r_y: 0,
-            r_s: 0xFD,
+            r_sp: 0xFD,
             r_pc: 0xC000,
 
             // flags
@@ -191,11 +191,11 @@ impl Cpu {
         }
     }
 
-    fn logInstr(&mut self, opcode: &Opcode) {
+    fn log_instr(&mut self, opcode: &Opcode) {
         if !self.debug {
             return;
         }
-        print!("{:4X} ", self.r_pc);
+        print!("{:4X}  ", self.r_pc);
 
         let mut args: [u8; 3] = [0;3];
 
@@ -205,7 +205,7 @@ impl Cpu {
             args[i as usize] = byte;
         }
 
-        for i in 0..3-opcode.bytes() {
+        for _ in 0..3-opcode.bytes() {
             print!("   ");
         }
 
@@ -218,7 +218,7 @@ impl Cpu {
                 self.read(addr).into()
             }
             "BCC" | "BCS" | "BEQ" | "BNE" | "BPL" | "BMI" | "BVC" | "BVS" => {
-                self.calculateBranchAddr(self.read(self.r_pc)).into()
+                self.calculate_branch_addr(self.read(self.r_pc + 1)).into()
             }
             _ => 0,
         };
@@ -226,21 +226,25 @@ impl Cpu {
 
         match opcode.mode() {
             AddressingMode::Absolute => {
-                print!("${:02X}{:02X}     ", args[2], args[1])
+                print!("${:02X}{:02X}               ", args[2], args[1])
             }
             AddressingMode::Immediate => {
-                print!("#${:02X}     ", args[1])
+                print!("#${:02X}                ", args[1])
             }
             AddressingMode::ZeroPage => {
-                print!("${:02X} = {:02X}     ", self.read(self.r_pc + 1), end_val)
+                print!("${:02X} = {:02X}            ", self.read(self.r_pc + 1), end_val)
             }
             AddressingMode::Relative => {
-                print!("${:04X}     ", end_val)
+                print!("${:04X}               ", end_val)
+            }
+            AddressingMode::Implicit => {
+                print!("                    ")
             }
             _ => ()
         }
 
-        println!("CYC: {}", self.cycles);
+        let p = self.get_p(false);
+        println!("A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}", self.r_a, self.r_x, self.r_y, p, self.r_sp, self.cycles);
 
     }
 
@@ -294,11 +298,10 @@ impl Cpu {
         }
     }
 
-    fn calculateBranchAddr(&mut self, offset: u8) -> u16 {
+    fn calculate_branch_addr(&mut self, offset: u8) -> u16 {
         let mut addr = self.r_pc;
-        //println!("AddrPre = {:04X}, Offset = {:02x}", addr, offset as i8);
         addr = addr.wrapping_add_signed(offset.into());
-        //println!("NewAddr = {:04X}", addr);
+        addr = addr.wrapping_add(1);
         addr
     }
 
@@ -320,7 +323,7 @@ impl Cpu {
             self.cycles += 1;
             let offset = self.read(self.r_pc);
             // let pre_pc = self.r_pc;
-            self.r_pc = self.calculateBranchAddr(offset);
+            self.r_pc = self.calculate_branch_addr(offset);
             // I think i should add a cycle if it crosses a page, but the tests say otherwise
             // if (((self.pc) >> 8) != ( prePc >> 8)) {
             //     self.cycles++;
@@ -330,15 +333,15 @@ impl Cpu {
         }
     }
 
-    fn pushStack(&mut self, value: u8) {
-        let addr = (self.r_s as u16) + 0x0100;
+    fn push_stack(&mut self, value: u8) {
+        let addr = (self.r_sp as u16) + 0x0100;
         self.write(addr, value);
-        self.r_s -= 1;
+        self.r_sp -= 1;
     }
 
-    fn popStack(&mut self) -> u8 {
-        self.r_s += 1;
-        let addr = (self.r_s as u16) + 0x0100;
+    fn pop_stack(&mut self) -> u8 {
+        self.r_sp += 1;
+        let addr = (self.r_sp as u16) + 0x0100;
         self.read(addr)
     }
 
@@ -558,14 +561,14 @@ impl Cpu {
         let addr = self.get_address(mode);
         let lo = (self.r_pc - 1) as u8;
         let hi = ((self.r_pc - 1) >> 8) as u8;
-        self.pushStack(hi);
-        self.pushStack(lo);
+        self.push_stack(hi);
+        self.push_stack(lo);
         self.r_pc = addr;
     }
 
     fn i_rts(&mut self) {
-        let lo = self.popStack() as u16;
-        let hi = self.popStack() as u16;
+        let lo = self.pop_stack() as u16;
+        let hi = self.pop_stack() as u16;
         let addr = (hi << 8) | lo;
         self.r_pc = addr + 1;
     }
@@ -576,20 +579,20 @@ impl Cpu {
         let hi = (addr >> 8) as u8;
         let p = self.get_p(true);
 
-        self.pushStack(hi);
-        self.pushStack(lo);
-        self.pushStack(p);
+        self.push_stack(hi);
+        self.push_stack(lo);
+        self.push_stack(p);
 
         self.f_i = true;
         self.r_pc = 0xFFFE;
     }
 
     fn i_rti(&mut self) {
-        let p = self.popStack();
+        let p = self.pop_stack();
         self.set_p(p, true);
 
-        let lo = self.popStack() as u16;
-        let hi = self.popStack() as u16;
+        let lo = self.pop_stack() as u16;
+        let hi = self.pop_stack() as u16;
         let addr = (hi << 8) | lo;
 
         self.r_pc = addr;
@@ -602,7 +605,7 @@ impl Cpu {
 
         let opcode = self.opcodes.get(&code).cloned().unwrap_or_else(|| panic!("Unknown opcode {:04x}", code));
 
-        self.logInstr(&opcode);
+        self.log_instr(&opcode);
 
         self.r_pc += 1;
 
@@ -697,29 +700,29 @@ impl Cpu {
             "RTI" =>
                 self.i_rti(),
             "PHA" =>
-                self.pushStack(self.r_a),
+                self.push_stack(self.r_a),
             "PLA" => {
-                self.r_a = self.popStack();
+                self.r_a = self.pop_stack();
                 self.update_zn_flags(self.r_a);
             }
             "PHP" => {
                 let p = self.get_p(true);
-                self.pushStack(p);
+                self.push_stack(p);
             }
             "PLP" => {
-                let p = self.popStack();
+                let p = self.pop_stack();
                 self.set_p(p, false);
             }
             "TXS" =>
-                self.r_s = self.r_x,
+                self.r_sp = self.r_x,
             "TSX" => {
-                self.r_x = self.r_s;
+                self.r_x = self.r_sp;
                 self.update_zn_flags(self.r_x);
             }
             "CLC" =>
                 self.f_c = false,
             "SEC" =>
-                self.f_c = false,
+                self.f_c = true,
             "CLI" => {
                 self.pending_iflag_value = false;
                 self.pending_iflag_update = true;
@@ -754,7 +757,7 @@ impl Cpu {
 
     pub fn reset(&mut self) {
         self.r_pc = 0xFFFC;
-        self.r_s = 0xFD;
+        self.r_sp = 0xFD;
         self.f_i = true;
 
         let lo = self.read(self.r_pc) as u16;
