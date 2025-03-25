@@ -198,22 +198,22 @@ impl Opcode {
             map.insert(op.code, op);
         }
 
-        return map;
+        map
     }
 
     pub fn name(&self) -> &'static str {
-        return self.name;
+        self.name
     }
 
     pub fn mode(&self) -> AddressingMode {
-        return self.mode
+        self.mode
     }
 
     pub fn cycles(&self) -> usize {
-        return self.cycles
+        self.cycles
     }
 
     pub fn bytes(&self) -> u16 {
-        return self.bytes
+        self.bytes
     }
 }

@@ -1,6 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{bus::Bus, cartridge::{self, Cartridge}, cpu::Cpu};
+use crate::{
+    bus::Bus,
+    cartridge::{self, Cartridge},
+    cpu::Cpu,
+};
 
 pub struct Emulator {
     debug: bool,
@@ -17,12 +21,12 @@ impl Emulator {
             debug,
             running: false,
             bus: bus.clone(),
-            cpu: Cpu::new(bus.clone(), debug)
-        } 
+            cpu: Cpu::new(bus.clone(), debug),
+        }
     }
 
     pub fn load_cartridge(&mut self, cartridge: Cartridge) {
-        self.bus.borrow_mut().loadCartridge(cartridge);
+        self.bus.borrow_mut().load_cartridge(cartridge);
     }
 
     #[allow(dead_code)]
@@ -38,7 +42,7 @@ impl Emulator {
 
         while self.running {
             cycles_this_frame += self.cpu.tick();
-            if cycles_this_frame > 10000 {
+            if cycles_this_frame > 20000 {
                 self.running = false;
             }
         }

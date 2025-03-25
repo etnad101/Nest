@@ -1,11 +1,10 @@
 mod bus;
+mod cartridge;
 mod cpu;
 mod emulator;
-mod cartridge;
 
-use emulator::Emulator;
 use cartridge::Cartridge;
-
+use emulator::Emulator;
 
 fn main() {
     let mut emulator = Emulator::new(true);
@@ -14,4 +13,12 @@ fn main() {
     emulator.load_cartridge(cartridge);
 
     emulator.run();
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn cool_test() {
+        assert!(true);
+    }
 }

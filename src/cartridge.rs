@@ -6,13 +6,11 @@ const CHR_ROM_SIZE_ADDR: usize = 4;
 const PRG_ROM_CHUNK_SIZE: usize = 0x4000;
 const CHR_ROM_CHUNK_SIZE: usize = 0x2000;
 
-enum Mapper {
-
-}
+enum Mapper {}
 
 enum CartridgeType {
     INES,
-    NES2
+    NES2,
 }
 
 pub struct Cartridge {
@@ -26,7 +24,6 @@ pub struct Cartridge {
 
     // mapper: Mapper,
     // cartridge_type: CartridgeType,
-
     prg_rom: Vec<u8>,
     chr_rom: Vec<u8>,
 }
@@ -40,7 +37,7 @@ impl Cartridge {
 
         if rom[0] != 0x4e && rom[1] != 0x45 && rom[2] != 0x53 && rom[3] != 0x1a {
             panic!("Invalid file type. Please provide a valid NES rom (INES or NES2.0)");
-        } 
+        }
 
         let prg_rom_size = rom[PRG_ROM_SIZE_ADDR] as usize * PRG_ROM_CHUNK_SIZE;
         let chr_rom_size = rom[CHR_ROM_SIZE_ADDR] as usize * CHR_ROM_CHUNK_SIZE;
@@ -48,7 +45,8 @@ impl Cartridge {
         // println!("prg rom size: {:06x}, chr rom size: {:06x}", prg_rom_size, chr_rom_size);
 
         let prg_rom: Vec<u8> = (&rom[0x10..0x10 + prg_rom_size]).to_owned();
-        let chr_rom: Vec<u8> = (&rom[0x10 + prg_rom_size..0x10 + chr_rom_size + prg_rom_size]).to_owned();
+        let chr_rom: Vec<u8> =
+            (rom[0x10 + prg_rom_size..0x10 + chr_rom_size + prg_rom_size]).to_owned();
 
         Self {
             prg_rom_size,

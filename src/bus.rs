@@ -1,6 +1,6 @@
 use crate::cartridge::Cartridge;
 
-const RAM_SIZE: usize = 0x800;
+pub const RAM_SIZE: usize = 0x800;
 const VRAM_SIZE: usize = 0x800;
 const PPU_REGS_SIZE: usize = 8;
 const APU_IO_REGS_SIZE: usize = 0x18;
@@ -26,32 +26,37 @@ impl Bus {
         }
     }
 
-    pub fn loadCartridge(&mut self, cartridge: Cartridge) {
+    pub fn load_cartridge(&mut self, cartridge: Cartridge) {
         self.cartridge = Some(cartridge);
         self.cartridge_inserted = true;
     }
 
     pub fn cpu_read(&self, addr: u16) -> u8 {
-        if (addr & 0xE000) == 0 {
+        // RAM & Mirrors $0000-$1FFF
+        if addr < 0x2000 {
             return self.ram[(addr & 0x07FF) as usize];
         }
-        if addr >= 0x2000 && addr <= 0x3FFF {
+        // PPU Registers & Mirrors $2000-$3FFF
+        if addr < 0x4000 {
             return self.ppu_regs[(addr & 7) as usize];
         }
-        if addr >= 0x4000 && addr <= 0x4017 {
+        // APU and IO Reisters $4000-$4017
+        if addr < 0x4018 {
             return self.apu_io_regs[(addr - 0x4000) as usize];
         }
-        if addr >= 0x4018 && addr <= 0x401F {
-            return 0; // APU and I/O functionality that is normally disabled, I think this should return 0
+        // APU and I/O functionality that is normally disabled, I think this should return 0 $4018-401F
+        if addr < 0x4020 {
+            return 0;
         }
+        // TODO: figure out what to do here
         if addr >= 0x4020 && addr <= 0x5FFF {
-            // TODO: figure out what to do here
             return 0;
         }
+        // TODO: Make this return cartridge ram
         if addr >= 0x6000 && addr <= 0x7FFF {
-            // TODO: Make this return cartridge ram
             return 0;
         }
+        // Cartridge rom
         if self.cartridge_inserted {
             let cartridge = self.cartridge.as_ref();
             return cartridge.unwrap().get_prg_rom((addr - 0x8000) as usize);
@@ -70,15 +75,15 @@ impl Bus {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-        if (addr & 0xE000) == 0 {
+        if addr < 0x2000 {
             self.ram[(addr & 0x07FF) as usize] = value;
             return;
         }
-        if addr >= 0x2000 && addr <= 0x3FFF {
+        if addr < 0x3FFF {
             self.ppu_regs[(addr & 7) as usize] = value;
             return;
         }
-        if addr >= 0x4000 && addr <= 0x4017 {
+        if addr < 0x4018 {
             self.apu_io_regs[(addr - 0x4000) as usize] = value;
             return;
         }
