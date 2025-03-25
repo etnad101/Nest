@@ -115,10 +115,10 @@ impl Cpu {
     }
 
     fn indirect_y_ptr(&mut self) -> (u16, u16) {
-        let lo_ptr: u16 = self.read(self.r_pc) as u16;
+        let lo_ptr: u8 = self.read(self.r_pc);
         self.r_pc += 1;
-        let lo: u16 = self.read(lo_ptr.into()) as u16;
-        let hi: u16 = self.read(lo_ptr.wrapping_add(1).into()) as u16;
+        let lo = self.read(lo_ptr.into()) as u16;
+        let hi = self.read(lo_ptr.wrapping_add(1).into()) as u16;
 
         let base_addr: u16 = (hi << 8) | lo;
         let addr: u16 = base_addr.wrapping_add(self.r_y.into());
@@ -153,9 +153,9 @@ impl Cpu {
             }
             AddressingMode::Absolute => {
                 let lo: u16 = self.read(self.r_pc) as u16;
-                self.r_pc += 1;
+                self.r_pc = self.r_pc.wrapping_add(1);
                 let hi: u16 = self.read(self.r_pc) as u16;
-                self.r_pc += 1;
+                self.r_pc = self.r_pc.wrapping_add(1);
                 (hi << 8) | lo
             }
             AddressingMode::AbsoluteX => {
@@ -182,11 +182,11 @@ impl Cpu {
                 let base_addr: u16 = (hi << 8) | lo;
                 let offset: u16 = self.r_y as u16;
 
-                if ((base_addr + offset) >> 8) != (base_addr >> 8) {
+                if ((base_addr.wrapping_add(offset)) >> 8) != (base_addr >> 8) {
                     self.page_crossed = true;
                 }
 
-                base_addr + offset
+                base_addr.wrapping_add(offset)
             }
             AddressingMode::Indirect => {
                 let lo_ptr: u8 = self.read(self.r_pc);
@@ -194,7 +194,7 @@ impl Cpu {
                 let hi_ptr: u8 = self.read(self.r_pc);
                 self.r_pc += 1;
 
-                let next_lo: u8 = lo_ptr + 1;
+                let next_lo: u8 = lo_ptr.wrapping_add(1);
 
                 let lo: u16 = ((hi_ptr as u16) << 8) | (lo_ptr as u16);
                 let hi: u16 = ((hi_ptr as u16) << 8) | (next_lo as u16);
@@ -214,7 +214,7 @@ impl Cpu {
         if !self.debug {
             return;
         }
-        print!("{:4X}  ", self.r_pc);
+        print!("{:04X}  ", self.r_pc);
 
         let mut args: [u8; 3] = [0; 3];
 
@@ -250,6 +250,15 @@ impl Cpu {
                     self.read(addr).into()
                 }
             }
+            "JMP" => {
+                if let AddressingMode::Absolute = opcode.mode() {
+                    0
+                } else {
+                    self.r_pc += 1;
+                    use_postfix = true;
+                    self.get_address(opcode.mode()).into()
+                }
+            }
             _ => 0,
         };
 
@@ -269,9 +278,35 @@ impl Cpu {
                     print_spaces!(23);
                 }
             }
+            AddressingMode::AbsoluteX => {
+                self.r_pc += 1;
+                print!(
+                    "${:02X}{:02X},X @ {:04X} = {:02X}",
+                    args[2],
+                    args[1],
+                    self.get_address(opcode.mode()),
+                    end_val
+                );
+                print_spaces!(9);
+            }
+            AddressingMode::AbsoluteY => {
+                self.r_pc += 1;
+                print!(
+                    "${:02X}{:02X},Y @ {:04X} = {:02X}",
+                    args[2],
+                    args[1],
+                    self.get_address(opcode.mode()),
+                    end_val
+                );
+                print_spaces!(9);
+            }
             AddressingMode::Immediate => {
                 print!("#${:02X}", args[1]);
                 print_spaces!(24);
+            }
+            AddressingMode::Indirect => {
+                print!("(${:02X}{:02X}) = {:04X}", args[2], args[1], end_val);
+                print_spaces!(14);
             }
             AddressingMode::IndirectX => {
                 let addr1: u8 = args[1].wrapping_add(self.r_x);
@@ -290,18 +325,32 @@ impl Cpu {
                 let (addr2, addr1) = self.indirect_y_ptr();
                 print!(
                     "(${:02X}),Y = {:04X} @ {:04X} = {:02X}",
-                    args[1],
-                    addr1,
-                    addr2,
-                    end_val
+                    args[1], addr1, addr2, end_val
                 );
                 print_spaces!(2);
-
             }
             AddressingMode::ZeroPage => {
                 print!("${:02X} = {:02X}", self.read(self.r_pc + 1), end_val);
                 //self.dump_ram();
                 print_spaces!(20);
+            }
+            AddressingMode::ZeroPageX => {
+                print!(
+                    "${:02X},X @ {:02X} = {:02X}",
+                    args[1],
+                    self.read(self.r_pc + 1).wrapping_add(self.r_x),
+                    end_val
+                );
+                print_spaces!(13);
+            }
+            AddressingMode::ZeroPageY => {
+                print!(
+                    "${:02X},Y @ {:02X} = {:02X}",
+                    args[1],
+                    self.read(self.r_pc + 1).wrapping_add(self.r_y),
+                    end_val
+                );
+                print_spaces!(13);
             }
             AddressingMode::Relative => {
                 print!("${:04X}", end_val);
