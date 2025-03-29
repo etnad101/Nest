@@ -1,4 +1,4 @@
-use crate::cartridge::Cartridge;
+use crate::cartridge::{self, Cartridge};
 
 pub const RAM_SIZE: usize = 0x800;
 const VRAM_SIZE: usize = 0x800;
@@ -65,13 +65,18 @@ impl Bus {
     }
 
     pub fn ppu_read(&self, addr: u16) -> u8 {
-        todo!("ppu_read");
-        // if (addr <= 0x1FFF) {
-        //     return self.cartridge->getChrROM(addr);
-        // }
-        // if (addr <= 0x2FFF) {
-        //     return self.vram[addr - 0x2FFF];
-        // }
+        let cartridge = self.cartridge.as_ref().unwrap();
+        if addr < 0x2000 {
+            return cartridge.get_chr_rom(addr.into())
+        }
+        if addr < 0x3000 {
+            return self.vram[addr as usize];
+        }
+        if addr < 0x3F00 {
+            unimplemented!("IDK what do do here, might be mirror of vram");
+        }
+
+        0 
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
