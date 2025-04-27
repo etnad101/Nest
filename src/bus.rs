@@ -66,6 +66,7 @@ impl Bus {
 
     pub fn ppu_read(&self, addr: u16) -> u8 {
         let cartridge = self.cartridge.as_ref().unwrap();
+        // Read from pattern table (i think)
         if addr < 0x2000 {
             return cartridge.get_chr_rom(addr.into())
         }
@@ -75,8 +76,7 @@ impl Bus {
         if addr < 0x3F00 {
             unimplemented!("IDK what do do here, might be mirror of vram");
         }
-
-        0 
+        unimplemented!("idk");
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {

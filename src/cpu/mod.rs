@@ -4,6 +4,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::bus::Bus;
 use opcode::Opcode;
 
+pub const CLOCK_SPEED: usize = 21_441_960;
+
 macro_rules! print_spaces {
     ($x:literal) => {
         print!("{}", " ".repeat($x));
@@ -56,11 +58,11 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(bus: Rc<RefCell<Bus>>, debug: bool) -> Self {
+    pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
         Self {
             opcodes: Opcode::get_opcode_map(),
 
-            debug,
+            debug: false,
             bus,
             cycles: 0,
             page_crossed: false,
@@ -81,6 +83,10 @@ impl Cpu {
             pending_iflag_value: false,
             pending_iflag_update: false,
         }
+    }
+
+    pub fn set_debug_mode(&mut self, debug: bool) {
+        self.debug = debug;
     }
 
     #[allow(unused)]
@@ -484,18 +490,18 @@ impl Cpu {
             //     self.cycles++;
             // }
         } else {
-            self.r_pc += 1;
+            self.r_pc = self.r_pc.wrapping_add(1);
         }
     }
 
     fn push_stack(&mut self, value: u8) {
         let addr = (self.r_sp as u16) + 0x0100;
         self.write(addr, value);
-        self.r_sp -= 1;
+        self.r_sp = self.r_sp.wrapping_sub(1);
     }
 
     fn pop_stack(&mut self) -> u8 {
-        self.r_sp += 1;
+        self.r_sp = self.r_sp.wrapping_add(1);
         let addr = (self.r_sp as u16) + 0x0100;
         self.read(addr)
     }
