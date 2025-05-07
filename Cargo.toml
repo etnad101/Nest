@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-simple_graphics = {git = "https://github.com/etnad101/simple-graphics-rs"}
+simple_graphics = {path = "../simple_graphics"}

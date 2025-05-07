@@ -461,7 +461,6 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 [[package]]
 name = "simple_graphics"
 version = "0.1.0"
-source = "git+https://github.com/etnad101/simple-graphics-rs#f22e7b1d73a0bb3773cd9d4e7819661bad973203"
 dependencies = [
  "minifb",
 ]

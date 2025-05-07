@@ -70,7 +70,7 @@ impl Cpu {
             r_x: 0,
             r_y: 0,
             r_sp: 0xFD,
-            r_pc: 0xC000,
+            r_pc: 0xFFFC,
 
             // flags
             f_c: false,
@@ -90,10 +90,9 @@ impl Cpu {
     }
 
     #[allow(unused)]
-    fn dump_mem(&self, size: usize) {
-        let width = 64;
+    fn dump_mem(&self, size: usize, width: usize) {
         println!();
-        for i in 0..(size / width) {
+        for i in 0..=(size / width) {
             print!("|{:04x}|", i * width);
             for j in 0..width {
                 let addr = (i * width) + j;
@@ -365,7 +364,6 @@ impl Cpu {
             AddressingMode::Implicit => {
                 print_spaces!(28);
             }
-            _ => (),
         }
 
         self.r_pc = temp_pc;
@@ -757,7 +755,7 @@ impl Cpu {
             .opcodes
             .get(&code)
             .cloned()
-            .unwrap_or_else(|| panic!("Unknown opcode {:04x}", code));
+            .unwrap_or_else(|| panic!("Unknown opcode {:#04x}", code));
 
         self.log_instr(&opcode);
 
@@ -875,6 +873,7 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
+        self.dump_mem(0xFFFF, 32);
         self.r_pc = 0xFFFC;
         self.r_sp = 0xFD;
         self.f_i = true;
@@ -885,8 +884,8 @@ impl Cpu {
 
         self.cycles = 5;
         // TODO: remove this when not using nestest
-        self.r_pc = 0xC000;
-        self.cycles += 2;
+        // self.r_pc = 0xC000;
+        // self.cycles += 2;
     }
 
     pub fn cycles(&mut self) -> usize {

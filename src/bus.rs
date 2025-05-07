@@ -1,4 +1,4 @@
-use crate::cartridge::{self, Cartridge};
+use crate::cartridge::Cartridge;
 
 pub const RAM_SIZE: usize = 0x800;
 const VRAM_SIZE: usize = 0x800;
@@ -6,10 +6,10 @@ const PPU_REGS_SIZE: usize = 8;
 const APU_IO_REGS_SIZE: usize = 0x18;
 
 pub struct Bus {
-    ram: [u8; RAM_SIZE],
-    ppu_regs: [u8; PPU_REGS_SIZE],
-    apu_io_regs: [u8; APU_IO_REGS_SIZE],
-    vram: [u8; VRAM_SIZE],
+    ram: Box<[u8; RAM_SIZE]>,
+    ppu_regs: Box<[u8; PPU_REGS_SIZE]>,
+    apu_io_regs: Box<[u8; APU_IO_REGS_SIZE]>,
+    vram: Box<[u8; VRAM_SIZE]>,
     cartridge_inserted: bool,
     cartridge: Option<Cartridge>,
 }
@@ -17,10 +17,10 @@ pub struct Bus {
 impl Bus {
     pub fn new() -> Self {
         Self {
-            ram: [0; RAM_SIZE],
-            ppu_regs: [0; PPU_REGS_SIZE],
-            apu_io_regs: [0; APU_IO_REGS_SIZE],
-            vram: [0; VRAM_SIZE],
+            ram: Box::new([0; RAM_SIZE]),
+            ppu_regs: Box::new([0; PPU_REGS_SIZE]),
+            apu_io_regs: Box::new([0; APU_IO_REGS_SIZE]),
+            vram: Box::new([0; VRAM_SIZE]),
             cartridge_inserted: false,
             cartridge: None,
         }
@@ -66,8 +66,8 @@ impl Bus {
 
     pub fn ppu_read(&self, addr: u16) -> u8 {
         let cartridge = self.cartridge.as_ref().unwrap();
-        // Read from pattern table (i think)
         if addr < 0x2000 {
+            // Read from pattern tables (i think)
             return cartridge.get_chr_rom(addr.into())
         }
         if addr < 0x3000 {

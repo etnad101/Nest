@@ -2,6 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use simple_graphics::display::Display;
 
+pub const WINDOW_TITLE: &str = "Nest";
+pub const WINDOW_WIDTH: usize = 256;
+pub const WINDOW_HEIGHT: usize = 240;
+
 use crate::{
     bus::Bus,
     cartridge::{self, Cartridge},
@@ -14,22 +18,27 @@ pub enum DebugMode {
     PPU,
 }
 
-pub struct Emulator<'a> {
-    debug: Vec<DebugMode>,
+pub struct Emulator {
+    main_display: Display,
     running: bool,
-    display: &'a mut Display,
     bus: Rc<RefCell<Bus>>,
     cpu: Cpu,
     ppu: Ppu,
+    debug: Vec<DebugMode>,
 }
 
-impl<'a> Emulator<'a> {
-    pub fn new(display: &'a mut Display) -> Self {
+impl Emulator {
+    pub fn new() -> Self {
+        let mut display = Display::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, true)
+            .expect("Failed to create window");
+        display.limit_frame_rate(Some(std::time::Duration::from_micros(16_667)));
+
         let bus = Rc::new(RefCell::new(Bus::new()));
+
         Self {
             debug: vec![],
             running: false,
-            display,
+            main_display: display,
             bus: bus.clone(),
             cpu: Cpu::new(bus.clone()),
             ppu: Ppu::new(bus.clone()),
@@ -37,9 +46,11 @@ impl<'a> Emulator<'a> {
     }
 
     pub fn set_debug_mode(&mut self, debug: Vec<DebugMode>) {
+        self.debug = debug;
         self.cpu.set_debug_mode(false);
         self.ppu.set_debug_mode(false);
-        for mode in debug {
+
+        for mode in &self.debug {
             match mode {
                 DebugMode::CPU => self.cpu.set_debug_mode(true),
                 DebugMode::PPU => self.ppu.set_debug_mode(true),
@@ -65,12 +76,14 @@ impl<'a> Emulator<'a> {
 
         while self.running {
             cycles_this_frame += self.cpu.tick();
-
             if cycles_this_frame >= max_cycles_per_frame {
                 cycles_this_frame = 0;
                 // Do some waiting to cap to 60fps
-                self.display.render().unwrap();
-                self.display.set_buffer(self.ppu.get_frame());
+                self.ppu.handle_debug();
+
+                self.main_display.set_buffer(self.ppu.get_frame());
+                self.main_display.render().unwrap();
+
             }
         }
     }
