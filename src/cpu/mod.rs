@@ -1,7 +1,7 @@
 mod opcode;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::bus::Bus;
+use crate::{bus::Bus, emulator::EmulatorState};
 use opcode::Opcode;
 
 pub const CLOCK_SPEED: usize = 21_441_960;
@@ -100,6 +100,10 @@ impl Cpu {
             }
             println!();
         }
+    }
+
+    pub fn get_state(&self) -> EmulatorState {
+        EmulatorState::cpu(self.cycles, self.r_a, self.r_x, self.r_y, self.r_sp, self.r_pc, self.f_c, self.f_z, self.f_i, self.f_d, self.f_v, self.f_n)
     }
 
     fn read(&self, addr: u16) -> u8 {
