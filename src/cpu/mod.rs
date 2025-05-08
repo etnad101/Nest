@@ -426,10 +426,15 @@ impl Cpu {
     }
 
     fn calculate_branch_addr(&mut self, offset: u8) -> u16 {
-        let mut addr = self.r_pc;
-        addr = addr.wrapping_add_signed(offset.into());
-        addr = addr.wrapping_add(1);
-        addr
+        let mut addr = self.r_pc as i16;
+        if offset & 0x80 > 0 {
+            let neg = (!offset + 1) as i16;
+            addr -= neg;
+        } else {
+            addr += offset as i16
+        }
+
+        (addr as u16).wrapping_add(1)
     }
 
     fn branch(&mut self, op_name: &'static str) {
@@ -755,7 +760,7 @@ impl Cpu {
             .opcodes
             .get(&code)
             .cloned()
-            .unwrap_or_else(|| panic!("Unknown opcode {:#04x}", code));
+            .unwrap_or_else(|| panic!("Unknown opcode {:#04X} @ {:#06X}", code, self.r_pc));
 
         self.log_instr(&opcode);
 
@@ -873,7 +878,6 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
-        self.dump_mem(0xFFFF, 32);
         self.r_pc = 0xFFFC;
         self.r_sp = 0xFD;
         self.f_i = true;
@@ -884,7 +888,7 @@ impl Cpu {
 
         self.cycles = 5;
         // TODO: remove this when not using nestest
-        // self.r_pc = 0xC000;
+        // self.r_pc = 0xC000; 
         // self.cycles += 2;
     }
 

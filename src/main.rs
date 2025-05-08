@@ -1,16 +1,17 @@
 mod bus;
 mod cartridge;
 mod cpu;
-mod ppu;
 mod emulator;
 
 use cartridge::Cartridge;
 use emulator::{DebugMode, Emulator};
 
+const WINDOW_TITLE: &str = "Nest";
+const WINDOW_WIDTH: usize = 256;
+const WINDOW_HEIGHT: usize = 240;
+
 fn main() {
-
     let mut emulator = Emulator::new();
-
 
     emulator.set_debug_mode(vec![DebugMode::CPU]);
 
