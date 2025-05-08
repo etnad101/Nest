@@ -13,7 +13,7 @@ const WINDOW_HEIGHT: usize = 240;
 fn main() {
     let mut emulator = Emulator::new();
 
-    emulator.set_debug_mode(vec![DebugMode::CPU]);
+    emulator.set_debug_mode(vec![DebugMode::CPU, DebugMode::STEP]);
 
     let cartridge = Cartridge::new("./roms/DonkeyKong.nes".to_string());
     emulator.load_cartridge(cartridge);

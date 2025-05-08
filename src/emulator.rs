@@ -1,9 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, char::MAX, io::Read, rc::Rc};
 
 
 pub const WINDOW_TITLE: &str = "Nest";
 pub const WINDOW_WIDTH: usize = 256;
 pub const WINDOW_HEIGHT: usize = 240;
+const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
 
 use crate::{
     bus::Bus,
@@ -11,17 +12,35 @@ use crate::{
     cpu::{self, Cpu},
 };
 
+pub struct EmulatorState {
+    cpu_cycles: usize,
+    cpu_r_a: u8,
+    cpu_r_x: u8,
+    cpu_r_y: u8,
+    cpu_r_sp: u8,
+    cpu_r_pc: u16,
+    cpu_f_c: bool,
+    cpu_f_z: bool,
+    cpu_f_i: bool,
+    cpu_f_d: bool,
+    cpu_f_v: bool,
+    cpu_f_n: bool,
+}
+
+#[derive(PartialEq, Eq)]
 pub enum DebugMode {
     CPU,
     PPU,
+    STEP
 }
 
 pub struct Emulator {
-    // main_display: Display,
     running: bool,
     bus: Rc<RefCell<Bus>>,
     cpu: Cpu,
     debug: Vec<DebugMode>,
+
+    cycles_this_frame: usize,
 }
 
 impl Emulator {
@@ -31,9 +50,9 @@ impl Emulator {
         Self {
             debug: vec![],
             running: false,
-            // main_display: display,
             bus: bus.clone(),
             cpu: Cpu::new(bus.clone()),
+            cycles_this_frame: 0,
         }
     }
 
@@ -44,7 +63,8 @@ impl Emulator {
         for mode in &self.debug {
             match mode {
                 DebugMode::CPU => self.cpu.set_debug_mode(true),
-                DebugMode::PPU => ()
+                DebugMode::PPU => (),
+                DebugMode::STEP => (), 
             }
         }
     }
@@ -58,20 +78,23 @@ impl Emulator {
         self.cpu.reset();
     }
 
+    pub fn tick(&mut self) {
+        self.cycles_this_frame += self.cpu.tick();
+        if self.cycles_this_frame >= MAX_CYCLES_PER_FRAME {
+            self.cycles_this_frame = 0;
+            // Do some waiting to cap to 60fps
+        }
+    }
+
     pub fn run(&mut self) {
         self.cpu.reset();
         self.running = true;
 
-        let mut cycles_this_frame: usize = 0;
-        let max_cycles_per_frame = cpu::CLOCK_SPEED / 60;
-
         while self.running {
-            cycles_this_frame += self.cpu.tick();
-            if cycles_this_frame >= max_cycles_per_frame {
-                cycles_this_frame = 0;
-                // Do some waiting to cap to 60fps
-
+            if self.debug.contains(&DebugMode::STEP) {
+                // TODO: make something pause until supposed to step
             }
+            self.tick();
         }
     }
 }
