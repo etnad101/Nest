@@ -1,33 +1,34 @@
-use std::{cell::RefCell, char::MAX, io::Read, rc::Rc};
+mod apu;
+mod bus;
+pub mod cartridge;
+mod cpu;
+mod io;
+mod ppu;
 
+use crate::emulator::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
+use std::{cell::RefCell, rc::Rc};
 
 pub const NES_WIDTH: usize = 256;
 pub const NES_HEIGHT: usize = 240;
 const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
 
-use crate::{
-    bus::Bus,
-    cartridge::{self, Cartridge},
-    cpu::{self, Cpu},
-};
-
 #[derive(PartialEq, Eq)]
 pub enum DebugMode {
-    CPU,
-    PPU,
-    STEP
+    Cpu,
+    Ppu,
+    Step,
 }
 
-pub struct Emulator {
+pub struct Emulator<'a> {
     running: bool,
-    bus: Rc<RefCell<Bus>>,
-    cpu: Cpu,
+    bus: Rc<RefCell<Bus<'a>>>,
+    cpu: Cpu<'a>,
     debug: Vec<DebugMode>,
 
     cycles_this_frame: usize,
 }
 
-impl Emulator {
+impl Emulator<'_> {
     pub fn new() -> Self {
         let bus = Rc::new(RefCell::new(Bus::new()));
 
@@ -46,9 +47,9 @@ impl Emulator {
 
         for mode in &self.debug {
             match mode {
-                DebugMode::CPU => self.cpu.set_debug_mode(true),
-                DebugMode::PPU => (),
-                DebugMode::STEP => (), 
+                DebugMode::Cpu => self.cpu.set_debug_mode(true),
+                DebugMode::Ppu => (),
+                DebugMode::Step => (),
             }
         }
     }
@@ -75,7 +76,7 @@ impl Emulator {
         self.running = true;
 
         while self.running {
-            if self.debug.contains(&DebugMode::STEP) {
+            if self.debug.contains(&DebugMode::Step) {
                 // TODO: make something pause until supposed to step
             }
             self.tick();

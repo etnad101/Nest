@@ -15,7 +15,9 @@ enum CartridgeType {
 
 pub struct Cartridge {
     prg_rom_size: usize,
+    prg_ram_size: usize,
     chr_rom_size: usize,
+    chr_ram_size: usize,
 
     // nametable_arrangement: bool,
     // persistant_memory: bool,
@@ -25,7 +27,9 @@ pub struct Cartridge {
     // mapper: Mapper,
     // cartridge_type: CartridgeType,
     prg_rom: Vec<u8>,
+    prg_ram: Vec<u8>,
     chr_rom: Vec<u8>,
+    chr_ram: Vec<u8>,
 }
 
 impl Cartridge {
@@ -44,15 +48,19 @@ impl Cartridge {
 
         // println!("prg rom size: {:06x}, chr rom size: {:06x}", prg_rom_size, chr_rom_size);
 
-        let prg_rom: Vec<u8> = (&rom[0x10..0x10 + prg_rom_size]).to_owned();
+        let prg_rom: Vec<u8> = (rom[0x10..0x10 + prg_rom_size]).to_owned();
         let chr_rom: Vec<u8> =
             (rom[0x10 + prg_rom_size..0x10 + chr_rom_size + prg_rom_size]).to_owned();
 
         Self {
             prg_rom_size,
+            prg_ram_size: 0,
             chr_rom_size,
+            chr_ram_size: 0,
             prg_rom,
+            prg_ram: Vec::new(),
             chr_rom,
+            chr_ram: Vec::new(),
         }
     }
 

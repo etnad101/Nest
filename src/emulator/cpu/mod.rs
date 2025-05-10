@@ -1,7 +1,7 @@
 mod opcode;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{bus::Bus};
+use super::bus::Bus;
 use opcode::Opcode;
 
 pub const CLOCK_SPEED: usize = 21_441_960;
@@ -29,12 +29,12 @@ pub enum AddressingMode {
     IndirectY,
 }
 
-pub struct Cpu {
+pub struct Cpu<'a> {
     opcodes: HashMap<u8, Opcode>,
 
     debug: bool,
 
-    bus: Rc<RefCell<Bus>>,
+    bus: Rc<RefCell<Bus<'a>>>,
     cycles: usize,
     page_crossed: bool,
 
@@ -57,8 +57,8 @@ pub struct Cpu {
     pending_iflag_update: bool,
 }
 
-impl Cpu {
-    pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
+impl<'a> Cpu<'a> {
+    pub fn new(bus: Rc<RefCell<Bus<'a>>>) -> Self {
         Self {
             opcodes: Opcode::get_opcode_map(),
 
@@ -888,7 +888,7 @@ impl Cpu {
 
         self.cycles = 5;
         // TODO: remove this when not using nestest
-        // self.r_pc = 0xC000; 
+        // self.r_pc = 0xC000;
         // self.cycles += 2;
     }
 
