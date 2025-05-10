@@ -11,53 +11,6 @@ use crate::{
     cpu::{self, Cpu},
 };
 
-pub struct EmulatorState {
-    pub cpu_cycles: usize,
-    pub cpu_r_a: u8,
-    pub cpu_r_x: u8,
-    pub cpu_r_y: u8,
-    pub cpu_r_sp: u8,
-    pub cpu_r_pc: u16,
-    pub cpu_f_c: bool,
-    pub cpu_f_z: bool,
-    pub cpu_f_i: bool,
-    pub cpu_f_d: bool,
-    pub cpu_f_v: bool,
-    pub cpu_f_n: bool,
-}
-
-impl EmulatorState {
-    pub fn cpu(
-        cpu_cycles: usize,
-        cpu_r_a: u8,
-        cpu_r_x: u8,
-        cpu_r_y: u8,
-        cpu_r_sp: u8,
-        cpu_r_pc: u16,
-        cpu_f_c: bool,
-        cpu_f_z: bool,
-        cpu_f_i: bool,
-        cpu_f_d: bool,
-        cpu_f_v: bool,
-        cpu_f_n: bool,
-    ) -> Self {
-        Self {
-            cpu_cycles,
-            cpu_r_a,
-            cpu_r_x,
-            cpu_r_y,
-            cpu_r_sp,
-            cpu_r_pc,
-            cpu_f_c,
-            cpu_f_z,
-            cpu_f_i,
-            cpu_f_d,
-            cpu_f_v,
-            cpu_f_n,
-        }
-    }
-}
-
 #[derive(PartialEq, Eq)]
 pub enum DebugMode {
     CPU,
@@ -98,10 +51,6 @@ impl Emulator {
                 DebugMode::STEP => (), 
             }
         }
-    }
-
-    pub fn get_state(&self) -> EmulatorState {
-        self.cpu.get_state()
     }
 
     #[allow(dead_code)]
