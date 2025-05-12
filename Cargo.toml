@@ -8,4 +8,6 @@ inherits = "release"
 debug = true
 
 [dependencies]
-simple-graphics = { path = "../crates/simple-graphics-rs" }
+simple_graphics = { git = "https://github.com/etnad101/simple-graphics-rs" }
+egui = "0.27.2"
+eframe = "0.27.0"

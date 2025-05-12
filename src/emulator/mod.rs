@@ -14,7 +14,51 @@ pub const PATTERN_TABLE_WIDTH: usize = 8 * 16;
 pub const PATTERN_TABLE_HEIGHT: usize = 8 * 32;
 const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
 
-type FrameBuffer = Box<[u32; NES_WIDTH * NES_HEIGHT]>;
+//type FrameBuffer = Box<[u32; NES_WIDTH * NES_HEIGHT]>;
+pub struct FrameBuffer {
+    buf: Vec<u32>,
+}
+
+impl FrameBuffer {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            buf: vec![0; width * height],
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    pub fn read(&self, index: usize) -> u32 {
+        self.buf[index]
+    }
+
+    pub fn write(&mut self, index: usize, value: u32) {
+        self.buf[index] = value;
+    }
+
+    pub fn raw(&self) -> &Vec<u32> {
+        &self.buf
+    }
+
+    pub fn rgb(&self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(self.buf.len() * 3);
+        for &pixel in self.buf.iter() {
+            let r = ((pixel & 0xFF0000) >> 16) as u8;
+            let g = ((pixel & 0x00FF00) >> 8) as u8;
+            let b = (pixel & 0x0000FF) as u8;
+
+            // Push the RGB components to the result vector
+            result.push(r);
+            result.push(g);
+            result.push(b);
+        }
+        result
+    }
+
+}
+
 
 #[derive(PartialEq, Eq)]
 pub enum DebugMode {
@@ -59,6 +103,14 @@ impl Emulator {
         }
     }
 
+    pub fn running(&self) -> bool {
+        self.running
+    }
+
+    pub fn stop(&mut self) {
+        self.running = false;
+    }
+
     #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.cpu.reset();
@@ -70,7 +122,7 @@ impl Emulator {
 
     pub fn tick<T>(&mut self, handle_display: &mut T)
     where
-        T: FnMut((&FrameBuffer, Vec<u32>)) -> (),
+        T: FnMut(&FrameBuffer, FrameBuffer) -> (),
     {
         let cycles = self.cpu.tick();
         self.cycles_this_frame += cycles;
@@ -81,16 +133,38 @@ impl Emulator {
 
         if self.cycles_this_frame >= MAX_CYCLES_PER_FRAME {
             self.cycles_this_frame = 0;
-            // Do some waiting to cap to 60fps
+            // Do some waiting to cap to 60 fps
             self.bus.borrow_mut().draw_nametable();
 
-            handle_display(self.bus.borrow().get_frame_and_pattern_table())
+            handle_display(self.bus.borrow().get_frame(), self.bus.borrow().get_pattern_table())
         }
+    }
+
+    pub fn step_frame<T>(&mut self, handle_display: &mut T)
+    where
+        T: FnMut(&FrameBuffer, FrameBuffer) -> (),
+    {
+
+        while self.cycles_this_frame < MAX_CYCLES_PER_FRAME {
+            let cycles = self.cpu.tick();
+            self.cycles_this_frame += cycles;
+
+            for _ in 0..cycles * 3 {
+                self.bus.borrow_mut().tick_ppu();
+            }
+
+        }
+
+        self.cycles_this_frame = 0;
+        // Do some waiting to cap to 60 fps
+        self.bus.borrow_mut().draw_nametable();
+
+        handle_display(self.bus.borrow().get_frame(), self.bus.borrow().get_pattern_table())
     }
 
     pub fn run_with_callback<T>(&mut self, handle_display: &mut T)
     where
-        T: FnMut((&FrameBuffer, Vec<u32>)) -> (),
+        T: FnMut(&FrameBuffer,FrameBuffer) -> (),
     {
         self.cpu.reset();
         self.running = true;

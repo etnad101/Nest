@@ -1,5 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
-
+use egui::Frame;
 use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu, FrameBuffer, NES_HEIGHT, NES_WIDTH};
 
 pub const RAM_SIZE: usize = 0x800;
@@ -89,8 +89,12 @@ impl Bus {
         self.ppu.draw_nametable();
     }
 
-    pub fn get_frame_and_pattern_table(&self) -> (&FrameBuffer, Vec<u32>) {
-        (self.ppu.frame(), self.ppu.pattern_table())
+    pub fn get_frame(&self) -> &FrameBuffer {
+        self.ppu.frame()
+    }
+
+    pub fn get_pattern_table(&self) -> FrameBuffer {
+        self.ppu.pattern_table()
     }
 
     pub fn set_ppu_debug_mode(&mut self, mode: bool) {

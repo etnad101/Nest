@@ -78,7 +78,7 @@ impl Ppu {
             scanline: 0,
             dot: 0,
 
-            frame_buffer: Box::new([0; NES_WIDTH * NES_HEIGHT]),
+            frame_buffer: FrameBuffer::new(NES_WIDTH, NES_HEIGHT),
             debug: false,
         }
     }
@@ -163,6 +163,7 @@ impl Ppu {
     }
 
     fn write(&mut self, addr: u16, value: u8) {
+        println!("PPU: writing - addr: {:#06x} value: {:#04x}", addr, value);
         if addr < 0x2000 {
             unimplemented!("ppu write < 0x2000");
         }
@@ -212,21 +213,21 @@ impl Ppu {
                 let pixel_addr = (NES_WIDTH * fine_y) + (8 * x) + bit_num + (y * NES_WIDTH * 7);
 
                 if plane_sig == 0 {
-                    self.frame_buffer[pixel_addr] = bit;
+                    self.frame_buffer.write(pixel_addr, bit);
                 } else {
-                    let lsb = self.frame_buffer[pixel_addr];
+                    let lsb = self.frame_buffer.read(pixel_addr);
                     let color_offset = (bit << 1) | lsb;
-                    self.frame_buffer[pixel_addr] = self.get_color(color_offset)
+                    self.frame_buffer.write(pixel_addr, self.get_color(color_offset));
                 }
             }
         }
     }
 
-    pub fn pattern_table(&self) -> Vec<u32> {
+    pub fn pattern_table(&self) -> FrameBuffer {
         if !self.debug {
-            return Vec::new();
+            return FrameBuffer::new(0, 0);
         }
-        let mut buf: Vec<u32> = vec![0; PATTERN_TABLE_WIDTH * PATTERN_TABLE_HEIGHT];
+        let mut buf =  FrameBuffer::new(PATTERN_TABLE_WIDTH, PATTERN_TABLE_HEIGHT);
 
         for addr in 0..0x2000 {
             let fine_y = addr & 7;
@@ -245,11 +246,11 @@ impl Ppu {
                     + (large_y * PATTERN_TABLE_WIDTH * 7);
 
                 if plane_sig == 0 {
-                    buf[pixel_addr] = bit;
+                    buf.write(pixel_addr,bit);
                 } else {
-                    let lsb = buf[pixel_addr];
+                    let lsb = buf.read(pixel_addr);
                     let color_offset = (bit << 1) | lsb;
-                    buf[pixel_addr] = self.get_color(color_offset)
+                    buf.write(pixel_addr, self.get_color(color_offset))
                 }
             }
         }
