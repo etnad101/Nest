@@ -64,8 +64,8 @@ impl Cartridge {
         }
     }
 
-    pub fn get_prg_rom(&self, index: usize) -> u8 {
-        let mut index = index;
+    pub fn get_prg_rom(&self, addr: u16) -> u8 {
+        let mut index = (addr - 0x8000) as usize;
         if self.prg_rom_size == PRG_ROM_CHUNK_SIZE {
             index &= 0x3FFF;
         }
@@ -75,10 +75,11 @@ impl Cartridge {
         self.prg_rom[index]
     }
 
-    pub fn get_chr_rom(&self, index: usize) -> u8 {
+    pub fn get_chr_rom(&self, addr: u16) -> u8 {
+        let index = addr as usize;
         if index >= self.chr_rom_size {
             panic!("Attempted to read outside of chr_rom");
         }
-        self.prg_rom[index]
+        self.chr_rom[index]
     }
 }

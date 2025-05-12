@@ -2,7 +2,7 @@ mod opcode;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::bus::Bus;
-use opcode::Opcode;
+use opcode::{Opcode, OpcodeName};
 
 pub const CLOCK_SPEED: usize = 21_441_960;
 
@@ -29,12 +29,12 @@ pub enum AddressingMode {
     IndirectY,
 }
 
-pub struct Cpu<'a> {
+pub struct Cpu {
     opcodes: HashMap<u8, Opcode>,
 
     debug: bool,
 
-    bus: Rc<RefCell<Bus<'a>>>,
+    bus: Rc<RefCell<Bus>>,
     cycles: usize,
     page_crossed: bool,
 
@@ -57,8 +57,8 @@ pub struct Cpu<'a> {
     pending_iflag_update: bool,
 }
 
-impl<'a> Cpu<'a> {
-    pub fn new(bus: Rc<RefCell<Bus<'a>>>) -> Self {
+impl Cpu {
+    pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
         Self {
             opcodes: Opcode::get_opcode_map(),
 
@@ -90,7 +90,7 @@ impl<'a> Cpu<'a> {
     }
 
     #[allow(unused)]
-    fn dump_mem(&self, size: usize, width: usize) {
+    fn dump_mem(&mut self, size: usize, width: usize) {
         println!();
         for i in 0..=(size / width) {
             print!("|{:04x}|", i * width);
@@ -102,8 +102,8 @@ impl<'a> Cpu<'a> {
         }
     }
 
-    fn read(&self, addr: u16) -> u8 {
-        self.bus.borrow().cpu_read(addr)
+    fn read(&mut self, addr: u16) -> u8 {
+        self.bus.borrow_mut().cpu_read(addr)
     }
 
     fn write(&mut self, addr: u16, value: u8) {
@@ -239,13 +239,38 @@ impl<'a> Cpu<'a> {
         let mut use_postfix = false;
 
         let end_val: usize = match opcode.name() {
-            "BCC" | "BCS" | "BEQ" | "BNE" | "BPL" | "BMI" | "BVC" | "BVS" => self
-                .calculate_branch_addr(self.read(self.r_pc + 1))
-                .wrapping_add(1)
-                .into(),
-            "STX" | "BIT" | "STA" | "LDX" | "LDA" | "ORA" | "AND" | "EOR" | "ADC" | "CMP"
-            | "SBC" | "LDY" | "STY" | "CPX" | "CPY" | "LSR" | "ASL" | "ROL" | "ROR" | "INC"
-            | "DEC" => {
+            OpcodeName::BCC
+            | OpcodeName::BCS
+            | OpcodeName::BEQ
+            | OpcodeName::BNE
+            | OpcodeName::BPL
+            | OpcodeName::BMI
+            | OpcodeName::BVC
+            | OpcodeName::BVS => {
+                let addr = self.read(self.r_pc + 1);
+                self.calculate_branch_addr(addr).wrapping_add(1).into()
+            }
+            OpcodeName::STX
+            | OpcodeName::BIT
+            | OpcodeName::STA
+            | OpcodeName::LDX
+            | OpcodeName::LDA
+            | OpcodeName::ORA
+            | OpcodeName::AND
+            | OpcodeName::EOR
+            | OpcodeName::ADC
+            | OpcodeName::CMP
+            | OpcodeName::SBC
+            | OpcodeName::LDY
+            | OpcodeName::STY
+            | OpcodeName::CPX
+            | OpcodeName::CPY
+            | OpcodeName::LSR
+            | OpcodeName::ASL
+            | OpcodeName::ROL
+            | OpcodeName::ROR
+            | OpcodeName::INC
+            | OpcodeName::DEC => {
                 if let AddressingMode::Accumulator = opcode.mode() {
                     0
                 } else {
@@ -255,7 +280,7 @@ impl<'a> Cpu<'a> {
                     self.read(addr).into()
                 }
             }
-            "JMP" => {
+            OpcodeName::JMP => {
                 if let AddressingMode::Absolute = opcode.mode() {
                     0
                 } else {
@@ -437,45 +462,45 @@ impl<'a> Cpu<'a> {
         (addr as u16).wrapping_add(1)
     }
 
-    fn branch(&mut self, op_name: &'static str) {
+    fn branch(&mut self, op_name: OpcodeName) {
         let mut branch = false;
         match op_name {
-            "BCC" => {
+            OpcodeName::BCC => {
                 if !self.f_c {
                     branch = true
                 }
             }
-            "BCS" => {
+            OpcodeName::BCS => {
                 if self.f_c {
                     branch = true
                 }
             }
-            "BEQ" => {
+            OpcodeName::BEQ => {
                 if self.f_z {
                     branch = true
                 }
             }
-            "BNE" => {
+            OpcodeName::BNE => {
                 if !self.f_z {
                     branch = true
                 }
             }
-            "BPL" => {
+            OpcodeName::BPL => {
                 if !self.f_n {
                     branch = true
                 }
             }
-            "BMI" => {
+            OpcodeName::BMI => {
                 if self.f_n {
                     branch = true
                 }
             }
-            "BVC" => {
+            OpcodeName::BVC => {
                 if !self.f_v {
                     branch = true
                 }
             }
-            "BVS" => {
+            OpcodeName::BVS => {
                 if self.f_v {
                     branch = true
                 }
@@ -767,99 +792,104 @@ impl<'a> Cpu<'a> {
         self.r_pc += 1;
 
         match opcode.name() {
-            "LDA" => self.i_lda(opcode.mode()),
-            "STA" => self.i_sta(opcode.mode()),
-            "LDX" => self.i_ldx(opcode.mode()),
-            "STX" => self.i_stx(opcode.mode()),
-            "LDY" => self.i_ldy(opcode.mode()),
-            "STY" => self.i_sty(opcode.mode()),
-            "TAX" => {
+            OpcodeName::LDA => self.i_lda(opcode.mode()),
+            OpcodeName::STA => self.i_sta(opcode.mode()),
+            OpcodeName::LDX => self.i_ldx(opcode.mode()),
+            OpcodeName::STX => self.i_stx(opcode.mode()),
+            OpcodeName::LDY => self.i_ldy(opcode.mode()),
+            OpcodeName::STY => self.i_sty(opcode.mode()),
+            OpcodeName::TAX => {
                 self.r_x = self.r_a;
                 self.update_zn_flags(self.r_x);
             }
-            "TAY" => {
+            OpcodeName::TAY => {
                 self.r_y = self.r_a;
                 self.update_zn_flags(self.r_y);
             }
-            "TXA" => {
+            OpcodeName::TXA => {
                 self.r_a = self.r_x;
                 self.update_zn_flags(self.r_a);
             }
-            "TYA" => {
+            OpcodeName::TYA => {
                 self.r_a = self.r_y;
                 self.update_zn_flags(self.r_a);
             }
-            "ADC" => self.i_adc(opcode.mode()),
-            "SBC" => self.i_sbc(opcode.mode()),
-            "INC" => self.i_inc(opcode.mode()),
-            "DEC" => self.i_dec(opcode.mode()),
-            "INX" => {
+            OpcodeName::ADC => self.i_adc(opcode.mode()),
+            OpcodeName::SBC => self.i_sbc(opcode.mode()),
+            OpcodeName::INC => self.i_inc(opcode.mode()),
+            OpcodeName::DEC => self.i_dec(opcode.mode()),
+            OpcodeName::INX => {
                 self.r_x = self.r_x.wrapping_add(1);
                 self.update_zn_flags(self.r_x);
             }
-            "DEX" => {
+            OpcodeName::DEX => {
                 self.r_x = self.r_x.wrapping_sub(1);
                 self.update_zn_flags(self.r_x);
             }
-            "INY" => {
+            OpcodeName::INY => {
                 self.r_y = self.r_y.wrapping_add(1);
                 self.update_zn_flags(self.r_y);
             }
-            "DEY" => {
+            OpcodeName::DEY => {
                 self.r_y = self.r_y.wrapping_sub(1);
                 self.update_zn_flags(self.r_y);
             }
-            "ASL" => self.i_asl(opcode.mode()),
-            "LSR" => self.i_lsr(opcode.mode()),
-            "ROL" => self.i_rol(opcode.mode()),
-            "ROR" => self.i_ror(opcode.mode()),
-            "AND" => self.i_and(opcode.mode()),
-            "ORA" => self.i_ora(opcode.mode()),
-            "EOR" => self.i_eor(opcode.mode()),
-            "BIT" => self.i_bit(opcode.mode()),
-            "CMP" => self.compare(self.r_a, opcode.mode()),
-            "CPX" => self.compare(self.r_x, opcode.mode()),
-            "CPY" => self.compare(self.r_y, opcode.mode()),
-            "BCC" | "BCS" | "BEQ" | "BNE" | "BPL" | "BMI" | "BVC" | "BVS" => {
-                self.branch(opcode.name())
-            }
-            "JMP" => self.r_pc = self.get_address(opcode.mode()),
-            "JSR" => self.i_jsr(opcode.mode()),
-            "RTS" => self.i_rts(),
-            "BRK" => self.i_brk(),
-            "RTI" => self.i_rti(),
-            "PHA" => self.push_stack(self.r_a),
-            "PLA" => {
+            OpcodeName::ASL => self.i_asl(opcode.mode()),
+            OpcodeName::LSR => self.i_lsr(opcode.mode()),
+            OpcodeName::ROL => self.i_rol(opcode.mode()),
+            OpcodeName::ROR => self.i_ror(opcode.mode()),
+            OpcodeName::AND => self.i_and(opcode.mode()),
+            OpcodeName::ORA => self.i_ora(opcode.mode()),
+            OpcodeName::EOR => self.i_eor(opcode.mode()),
+            OpcodeName::BIT => self.i_bit(opcode.mode()),
+            OpcodeName::CMP => self.compare(self.r_a, opcode.mode()),
+            OpcodeName::CPX => self.compare(self.r_x, opcode.mode()),
+            OpcodeName::CPY => self.compare(self.r_y, opcode.mode()),
+            OpcodeName::BCC
+            | OpcodeName::BCS
+            | OpcodeName::BEQ
+            | OpcodeName::BNE
+            | OpcodeName::BPL
+            | OpcodeName::BMI
+            | OpcodeName::BVC
+            | OpcodeName::BVS => self.branch(opcode.name()),
+            OpcodeName::JMP => self.r_pc = self.get_address(opcode.mode()),
+            OpcodeName::JSR => self.i_jsr(opcode.mode()),
+            OpcodeName::RTS => self.i_rts(),
+            OpcodeName::BRK => self.i_brk(),
+            OpcodeName::RTI => self.i_rti(),
+            OpcodeName::PHA => self.push_stack(self.r_a),
+            OpcodeName::PLA => {
                 self.r_a = self.pop_stack();
                 self.update_zn_flags(self.r_a);
             }
-            "PHP" => {
+            OpcodeName::PHP => {
                 let p = self.get_p(true);
                 self.push_stack(p);
             }
-            "PLP" => {
+            OpcodeName::PLP => {
                 let p = self.pop_stack();
                 self.set_p(p, false);
             }
-            "TXS" => self.r_sp = self.r_x,
-            "TSX" => {
+            OpcodeName::TXS => self.r_sp = self.r_x,
+            OpcodeName::TSX => {
                 self.r_x = self.r_sp;
                 self.update_zn_flags(self.r_x);
             }
-            "CLC" => self.f_c = false,
-            "SEC" => self.f_c = true,
-            "CLI" => {
+            OpcodeName::CLC => self.f_c = false,
+            OpcodeName::SEC => self.f_c = true,
+            OpcodeName::CLI => {
                 self.pending_iflag_value = false;
                 self.pending_iflag_update = true;
             }
-            "SEI" => {
+            OpcodeName::SEI => {
                 self.pending_iflag_value = true;
                 self.pending_iflag_update = true;
             }
-            "CLD" => self.f_d = false,
-            "SED" => self.f_d = true,
-            "CLV" => self.f_v = false,
-            "NOP" => (),
+            OpcodeName::CLD => self.f_d = false,
+            OpcodeName::SED => self.f_d = true,
+            OpcodeName::CLV => self.f_v = false,
+            OpcodeName::NOP => (),
             _ => panic!("opcode does not exist"),
         }
 

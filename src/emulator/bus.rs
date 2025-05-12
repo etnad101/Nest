@@ -1,17 +1,19 @@
-use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu};
+use std::{cell::RefCell, rc::Rc};
+
+use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu, FrameBuffer, NES_HEIGHT, NES_WIDTH};
 
 pub const RAM_SIZE: usize = 0x800;
 
-pub struct Bus<'a> {
+pub struct Bus {
     wram: Box<[u8; RAM_SIZE]>,
-    ppu: Ppu<'a>,
+    ppu: Ppu,
     apu: Apu,
     io: Io,
     cartridge_inserted: bool,
-    cartridge: Option<Cartridge>,
+    cartridge: Option<Rc<RefCell<Cartridge>>>,
 }
 
-impl Bus<'_> {
+impl Bus {
     pub fn new() -> Self {
         Self {
             wram: Box::new([0; RAM_SIZE]),
@@ -24,11 +26,13 @@ impl Bus<'_> {
     }
 
     pub fn load_cartridge(&mut self, cartridge: Cartridge) {
-        self.cartridge = Some(cartridge);
+        let cartridge = Rc::new(RefCell::new(cartridge));
+        self.cartridge = Some(cartridge.clone());
+        self.ppu.set_cartridge(Some(cartridge));
         self.cartridge_inserted = true;
     }
 
-    pub fn cpu_read(&self, addr: u16) -> u8 {
+    pub fn cpu_read(&mut self, addr: u16) -> u8 {
         // RAM & Mirrors $0000-$1FFF
         if addr < 0x2000 {
             return self.wram[(addr & 0x07FF) as usize];
@@ -55,8 +59,7 @@ impl Bus<'_> {
         }
         // Cartridge rom
         if self.cartridge_inserted {
-            let cartridge = self.cartridge.as_ref();
-            return cartridge.unwrap().get_prg_rom((addr - 0x8000) as usize);
+            return self.cartridge.as_ref().unwrap().borrow().get_prg_rom(addr);
         }
         panic!("no cartridge inserted");
     }
@@ -75,5 +78,22 @@ impl Bus<'_> {
             return;
         }
         panic!("ERROR: Writing to something i haven't implemented yet")
+    }
+
+    // Expose PPU functions to Emulator
+    pub fn tick_ppu(&mut self) {
+        self.ppu.tick();
+    }
+
+    pub fn draw_nametable(&mut self) {
+        self.ppu.draw_nametable();
+    }
+
+    pub fn get_frame_and_pattern_table(&self) -> (&FrameBuffer, Vec<u32>) {
+        (self.ppu.frame(), self.ppu.pattern_table())
+    }
+
+    pub fn set_ppu_debug_mode(&mut self, mode: bool) {
+        self.ppu.set_debug_mode(mode)
     }
 }
