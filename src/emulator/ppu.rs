@@ -6,33 +6,33 @@ const VRAM_SIZE: usize = 0x800;
 pub const PATTERN_TABLE_WIDTH: usize = 8 * 16;
 pub const PATTERN_TABLE_HEIGHT: usize = 8 * 32;
 
-enum PpuRegs {
-    PpuCtrl,
-    PpuMask,
-    PpuStatus,
-    OamAddr,
-    OamData,
-    PpuScroll,
-    PpuAddr,
-    PpuData,
-    OamDma,
-}
+// enum PpuRegs {
+//     PpuCtrl,
+//     PpuMask,
+//     PpuStatus,
+//     OamAddr,
+//     OamData,
+//     PpuScroll,
+//     PpuAddr,
+//     PpuData,
+//     OamDma,
+// }
 
-impl PpuRegs {
-    fn addr(&self) -> u16 {
-        match self {
-            PpuRegs::PpuCtrl => 0x2000,
-            PpuRegs::PpuMask => 0x2001,
-            PpuRegs::PpuStatus => 0x2002,
-            PpuRegs::OamAddr => 0x2003,
-            PpuRegs::OamData => 0x2004,
-            PpuRegs::PpuScroll => 0x2005,
-            PpuRegs::PpuAddr => 0x2006,
-            PpuRegs::PpuData => 0x2007,
-            PpuRegs::OamDma => 0x4014,
-        }
-    }
-}
+// impl PpuRegs {
+//     fn addr(&self) -> u16 {
+//         match self {
+//             PpuRegs::PpuCtrl => 0x2000,
+//             PpuRegs::PpuMask => 0x2001,
+//             PpuRegs::PpuStatus => 0x2002,
+//             PpuRegs::OamAddr => 0x2003,
+//             PpuRegs::OamData => 0x2004,
+//             PpuRegs::PpuScroll => 0x2005,
+//             PpuRegs::PpuAddr => 0x2006,
+//             PpuRegs::PpuData => 0x2007,
+//             PpuRegs::OamDma => 0x4014,
+//         }
+//     }
+// }
 
 pub struct Ppu {
     vram: Box<[u8; VRAM_SIZE]>,
@@ -121,11 +121,11 @@ impl Ppu {
             0x2005 => {
                 let coarse = (value >> 3) as u16;
                 if self.r_w == 0 {
-                    self.r_t &= 0b111_11_11111_00000;
+                    self.r_t &= 0b0111_1111_1110_0000;
                     self.r_t |= coarse;
                     self.r_x = value & 3;
                 } else {
-                    self.r_t &= 0b000_11_00000_11111;
+                    self.r_t &= 0b0000_1100_0001_1111;
                     self.r_t |= coarse << 5;
                     self.r_t |= (value as u16 & 3) << 12;
                 }
@@ -163,10 +163,10 @@ impl Ppu {
     }
 
     fn write(&mut self, addr: u16, value: u8) {
-        println!("PPU: writing - addr: {:#06x} value: {:#04x}", addr, value);
         if addr < 0x2000 {
             unimplemented!("ppu write < 0x2000");
         }
+
         if addr < 0x3F00 {
             self.vram[addr as usize - 0x2000] = value;
         }
@@ -182,6 +182,7 @@ impl Ppu {
             self.scanline += 1;
             self.dot = 0
         }
+
         if self.scanline > 261 {
             self.scanline = 0;
         }
@@ -199,11 +200,11 @@ impl Ppu {
 
     pub fn draw_tile(&mut self, x: usize, y: usize, tile_num: usize) {
         let base_addr = tile_num * 16;
+
         for offset in 0..16 {
             let addr = base_addr + offset;
             let fine_y = addr & 7;
             let plane_sig = (addr & 8) >> 3;
-            let large_y = tile_num / 16;
 
             let bit_plane = self.read(addr as u16);
 
@@ -217,7 +218,8 @@ impl Ppu {
                 } else {
                     let lsb = self.frame_buffer.read(pixel_addr);
                     let color_offset = (bit << 1) | lsb;
-                    self.frame_buffer.write(pixel_addr, self.get_color(color_offset));
+                    self.frame_buffer
+                        .write(pixel_addr, self.get_color(color_offset));
                 }
             }
         }
@@ -227,7 +229,8 @@ impl Ppu {
         if !self.debug {
             return FrameBuffer::new(0, 0);
         }
-        let mut buf =  FrameBuffer::new(PATTERN_TABLE_WIDTH, PATTERN_TABLE_HEIGHT);
+
+        let mut buf = FrameBuffer::new(PATTERN_TABLE_WIDTH, PATTERN_TABLE_HEIGHT);
 
         for addr in 0..0x2000 {
             let fine_y = addr & 7;
@@ -246,7 +249,7 @@ impl Ppu {
                     + (large_y * PATTERN_TABLE_WIDTH * 7);
 
                 if plane_sig == 0 {
-                    buf.write(pixel_addr,bit);
+                    buf.write(pixel_addr, bit);
                 } else {
                     let lsb = buf.read(pixel_addr);
                     let color_offset = (bit << 1) | lsb;
@@ -254,20 +257,24 @@ impl Ppu {
                 }
             }
         }
+
         buf
     }
 
     pub fn draw_nametable(&mut self) {
         let mut x = 0;
         let mut y = 0;
+
         for addr in 0..0x400 {
             let tile = self.vram[addr];
             self.draw_tile(x, y, tile as usize);
+
             x += 1;
             if x >= 32 {
                 x = 0;
                 y += 1;
             }
+
             if y >= 30 {
                 y = 0;
             }

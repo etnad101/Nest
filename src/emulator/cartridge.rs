@@ -1,4 +1,4 @@
-use std::{fs, io::Read};
+use std::{error::Error, fs};
 
 const PRG_ROM_SIZE_ADDR: usize = 4;
 const CHR_ROM_SIZE_ADDR: usize = 4;
@@ -9,7 +9,7 @@ const CHR_ROM_CHUNK_SIZE: usize = 0x2000;
 enum Mapper {}
 
 enum CartridgeType {
-    INES,
+    Ines,
     NES2,
 }
 
@@ -33,14 +33,13 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn new(rom_path: String) -> Self {
-        let rom = match fs::read(rom_path) {
-            Ok(r) => r,
-            Err(e) => panic!("Unable to read rom from specified path\n\n{}", e),
-        };
+    pub fn new(rom_path: String) -> Result<Self, Box<dyn Error>> {
+        let rom = fs::read(rom_path)?;
 
         if rom[0] != 0x4e && rom[1] != 0x45 && rom[2] != 0x53 && rom[3] != 0x1a {
-            panic!("Invalid file type. Please provide a valid NES rom (INES or NES2.0)");
+            return Err(
+                "Invalid file type. Please provide a valid NES rom (INES or NES2.0)".into(),
+            );
         }
 
         let prg_rom_size = rom[PRG_ROM_SIZE_ADDR] as usize * PRG_ROM_CHUNK_SIZE;
@@ -52,7 +51,7 @@ impl Cartridge {
         let chr_rom: Vec<u8> =
             (rom[0x10 + prg_rom_size..0x10 + chr_rom_size + prg_rom_size]).to_owned();
 
-        Self {
+        let cartridge = Self {
             prg_rom_size,
             prg_ram_size: 0,
             chr_rom_size,
@@ -61,7 +60,9 @@ impl Cartridge {
             prg_ram: Vec::new(),
             chr_rom,
             chr_ram: Vec::new(),
-        }
+        };
+
+        Ok(cartridge)
     }
 
     pub fn get_prg_rom(&self, addr: u16) -> u8 {

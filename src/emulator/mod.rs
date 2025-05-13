@@ -12,9 +12,8 @@ pub const NES_WIDTH: usize = 256;
 pub const NES_HEIGHT: usize = 240;
 pub const PATTERN_TABLE_WIDTH: usize = 8 * 16;
 pub const PATTERN_TABLE_HEIGHT: usize = 8 * 32;
-const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
+pub const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
 
-//type FrameBuffer = Box<[u32; NES_WIDTH * NES_HEIGHT]>;
 pub struct FrameBuffer {
     buf: Vec<u32>,
 }
@@ -56,9 +55,22 @@ impl FrameBuffer {
         }
         result
     }
-
 }
 
+pub struct EmulatorState {
+    pub cpu_cycles: usize,
+    pub cpu_r_a: u8,
+    pub cpu_r_x: u8,
+    pub cpu_r_y: u8,
+    pub cpu_r_sp: u8,
+    pub cpu_r_pc: u16,
+    pub cpu_f_c: bool,
+    pub cpu_f_z: bool,
+    pub cpu_f_i: bool,
+    pub cpu_f_d: bool,
+    pub cpu_f_v: bool,
+    pub cpu_f_n: bool,
+}
 
 #[derive(PartialEq, Eq)]
 pub enum DebugMode {
@@ -111,6 +123,10 @@ impl Emulator {
         self.running = false;
     }
 
+    pub fn get_state(&self) -> EmulatorState {
+        self.cpu.get_state()
+    }
+
     #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.cpu.reset();
@@ -122,7 +138,7 @@ impl Emulator {
 
     pub fn tick<T>(&mut self, handle_display: &mut T)
     where
-        T: FnMut(&FrameBuffer, FrameBuffer) -> (),
+        T: FnMut(&FrameBuffer, FrameBuffer),
     {
         let cycles = self.cpu.tick();
         self.cycles_this_frame += cycles;
@@ -136,15 +152,17 @@ impl Emulator {
             // Do some waiting to cap to 60 fps
             self.bus.borrow_mut().draw_nametable();
 
-            handle_display(self.bus.borrow().get_frame(), self.bus.borrow().get_pattern_table())
+            handle_display(
+                self.bus.borrow().get_frame(),
+                self.bus.borrow().get_pattern_table(),
+            )
         }
     }
 
     pub fn step_frame<T>(&mut self, handle_display: &mut T)
     where
-        T: FnMut(&FrameBuffer, FrameBuffer) -> (),
+        T: FnMut(&FrameBuffer, FrameBuffer),
     {
-
         while self.cycles_this_frame < MAX_CYCLES_PER_FRAME {
             let cycles = self.cpu.tick();
             self.cycles_this_frame += cycles;
@@ -152,19 +170,21 @@ impl Emulator {
             for _ in 0..cycles * 3 {
                 self.bus.borrow_mut().tick_ppu();
             }
-
         }
 
         self.cycles_this_frame = 0;
         // Do some waiting to cap to 60 fps
         self.bus.borrow_mut().draw_nametable();
 
-        handle_display(self.bus.borrow().get_frame(), self.bus.borrow().get_pattern_table())
+        handle_display(
+            self.bus.borrow().get_frame(),
+            self.bus.borrow().get_pattern_table(),
+        )
     }
 
     pub fn run_with_callback<T>(&mut self, handle_display: &mut T)
     where
-        T: FnMut(&FrameBuffer,FrameBuffer) -> (),
+        T: FnMut(&FrameBuffer, FrameBuffer),
     {
         self.cpu.reset();
         self.running = true;

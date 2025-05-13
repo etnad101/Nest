@@ -8,6 +8,6 @@ inherits = "release"
 debug = true
 
 [dependencies]
-simple_graphics = { git = "https://github.com/etnad101/simple-graphics-rs" }
-egui = "0.27.2"
-eframe = "0.27.0"
+egui = "0.31.1"
+eframe = "0.31.1"
+rfd = "0.15.3"

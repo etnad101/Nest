@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
-use egui::Frame;
 use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu, FrameBuffer, NES_HEIGHT, NES_WIDTH};
+use egui::Frame;
+use std::{cell::RefCell, rc::Rc};
 
 pub const RAM_SIZE: usize = 0x800;
 
