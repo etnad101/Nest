@@ -31,6 +31,10 @@ impl Bus {
         self.ppu.set_cartridge(Some(cartridge));
         self.cartridge_inserted = true;
     }
+    
+    pub fn set_cpu_debug_read(&mut self, mode: bool) {
+        self.ppu.cpu_debug_read = mode;
+    }
 
     pub fn cpu_read(&mut self, addr: u16) -> u8 {
         // RAM & Mirrors $0000-$1FFF

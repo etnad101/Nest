@@ -70,10 +70,11 @@ pub struct EmulatorState {
     pub cpu_f_d: bool,
     pub cpu_f_v: bool,
     pub cpu_f_n: bool,
+    pub cpu_p: u8,
 }
 
 #[derive(PartialEq, Eq)]
-pub enum DebugMode {
+pub enum DebugFlag {
     Cpu,
     Ppu,
     Step,
@@ -84,7 +85,7 @@ pub struct Emulator {
     cpu: Cpu,
 
     running: bool,
-    debug: Vec<DebugMode>,
+    debug: Vec<DebugFlag>,
     cycles_this_frame: usize,
 }
 
@@ -101,17 +102,41 @@ impl Emulator {
         }
     }
 
-    pub fn set_debug_mode(&mut self, debug: Vec<DebugMode>) {
-        self.debug = debug;
+    fn update_internal_debug_mode(&mut self) {
         self.cpu.set_debug_mode(false);
         self.bus.borrow_mut().set_ppu_debug_mode(false);
 
         for mode in &self.debug {
             match mode {
-                DebugMode::Cpu => self.cpu.set_debug_mode(true),
-                DebugMode::Ppu => self.bus.borrow_mut().set_ppu_debug_mode(true),
-                DebugMode::Step => (),
+                DebugFlag::Cpu => self.cpu.set_debug_mode(true),
+                DebugFlag::Ppu => self.bus.borrow_mut().set_ppu_debug_mode(true),
+                DebugFlag::Step => (),
             }
+        }
+    }
+
+    pub fn set_debug_flags(&mut self, debug: Vec<DebugFlag>) {
+        self.debug = debug;
+        self.update_internal_debug_mode();
+    }
+
+    pub fn set_debug_flag(&mut self, flag: DebugFlag) {
+        if !self.debug.contains(&flag) {
+            self.debug.push(flag)
+        }
+        self.update_internal_debug_mode();
+    }
+
+    pub fn clear_debug_flag(&mut self, flag: DebugFlag) {
+        self.debug.retain(|x| x != &flag);
+        self.update_internal_debug_mode();
+    }
+
+    pub fn toggle_debug_flag(&mut self, flag: DebugFlag) {
+        if self.debug.contains(&flag) {
+            self.clear_debug_flag(flag);
+        } else {
+            self.set_debug_flag(flag);
         }
     }
 
@@ -127,9 +152,17 @@ impl Emulator {
         self.cpu.get_state()
     }
 
+    pub fn get_logged_instr(&self) -> String {
+        self.cpu.get_logged_instr()
+    }
+
     #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.cpu.reset();
+    }
+
+    pub fn run_cpu_test(&mut self, path: String) {
+        
     }
 
     pub fn load_cartridge(&mut self, cartridge: Cartridge) {
@@ -190,7 +223,7 @@ impl Emulator {
         self.running = true;
 
         while self.running {
-            if self.debug.contains(&DebugMode::Step) {
+            if self.debug.contains(&DebugFlag::Step) {
                 // TODO: make something pause until supposed to step
             }
             self.tick(handle_display);

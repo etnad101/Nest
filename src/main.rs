@@ -2,14 +2,14 @@ mod emulator;
 mod gui;
 
 use emulator::cartridge::Cartridge;
-use emulator::{DebugMode, Emulator};
+use emulator::{DebugFlag, Emulator};
 use gui::NestApp;
 
 const WINDOW_TITLE: &str = "Nest";
 
 fn main() {
     let mut emulator = Emulator::new();
-    emulator.set_debug_mode(vec![DebugMode::Ppu]);
+    emulator.set_debug_flags(vec![DebugFlag::Ppu, DebugFlag::Cpu]);
 
     let cartridge = Cartridge::new("./roms/DonkeyKong.nes".to_string()).unwrap();
     emulator.load_cartridge(cartridge);
@@ -25,4 +25,11 @@ fn main() {
         Box::new(|_cc| Ok(Box::new(NestApp::new(emulator)))),
     )
     .unwrap()
+}
+
+#[cfg(test)]
+mod test {
+    fn run_tests() {
+        println!("running tests");
+    }
 }

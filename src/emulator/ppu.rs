@@ -55,6 +55,7 @@ pub struct Ppu {
 
     debug: bool,
     frame_buffer: FrameBuffer,
+    pub cpu_debug_read: bool,
 }
 
 impl Ppu {
@@ -80,6 +81,7 @@ impl Ppu {
 
             frame_buffer: FrameBuffer::new(NES_WIDTH, NES_HEIGHT),
             debug: false,
+            cpu_debug_read: false,
         }
     }
 
@@ -97,6 +99,9 @@ impl Ppu {
             0x2001 => self.ppu_mask,
             0x2002 => {
                 let value = self.ppu_status;
+                if self.cpu_debug_read {
+                    return value;
+                }
                 self.r_w = 0;
                 self.ppu_status &= 0x7F;
                 value

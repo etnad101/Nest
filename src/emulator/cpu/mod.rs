@@ -55,6 +55,7 @@ pub struct Cpu {
 
     pending_iflag_value: bool,
     pending_iflag_update: bool,
+    logged_instruction: String,
 }
 
 impl Cpu {
@@ -82,10 +83,12 @@ impl Cpu {
 
             pending_iflag_value: false,
             pending_iflag_update: false,
+            logged_instruction: String::new(),
         }
     }
 
     pub fn get_state(&self) -> EmulatorState {
+        let p = self.get_p(false);
         EmulatorState {
             cpu_cycles: self.cycles,
             cpu_r_a: self.r_a,
@@ -99,7 +102,21 @@ impl Cpu {
             cpu_f_d: self.f_d,
             cpu_f_v: self.f_v,
             cpu_f_n: self.f_n,
+            cpu_p: p,
         }
+    }
+
+    pub fn load_state(&mut self, state: EmulatorState) {
+        self.r_pc = state.cpu_r_pc;
+        self.r_sp = state.cpu_r_sp;
+        self.r_a = state.cpu_r_a;
+        self.r_x = state.cpu_r_x;
+        self.r_y = state.cpu_r_x;
+        self.set_p(state.cpu_p, false);
+    }
+
+    pub fn get_logged_instr(&self) -> String {
+        self.logged_instruction.clone()
     }
 
     pub fn set_debug_mode(&mut self, debug: bool) {
@@ -232,26 +249,26 @@ impl Cpu {
         }
     }
 
-    fn log_instr(&mut self, opcode: &Opcode) {
+    pub fn log_instr(&mut self, opcode: &Opcode) {
         if !self.debug {
             return;
         }
-        panic!("WARNING: Do not use cpu debug mode, it is broken and changes the way the emulator runs");
-        print!("{:04X}  ", self.r_pc);
+        self.bus.borrow_mut().set_cpu_debug_read(true);
+        self.logged_instruction = format!("{:04X}  ", self.r_pc);
 
         let mut args: [u8; 3] = [0; 3];
 
         for i in 0..opcode.bytes() {
             let byte = self.read(self.r_pc + i);
-            print!("{:02X} ", byte);
+            self.logged_instruction.push_str(&format!("{:02X} ", byte));
             args[i as usize] = byte;
         }
 
         for _ in 0..3 - opcode.bytes() {
-            print!("   ");
+            self.logged_instruction.push_str(&format!("   "));
         }
 
-        print!(" {} ", opcode.name());
+        self.logged_instruction.push_str(&format!(" {} ", opcode.name()));
 
         let temp_pc = self.r_pc;
         let mut use_postfix = false;
@@ -314,111 +331,98 @@ impl Cpu {
 
         match opcode.mode() {
             AddressingMode::Accumulator => {
-                print!("A");
-                print_spaces!(27);
+                self.logged_instruction.push_str(&format!("A"));
             }
             AddressingMode::Absolute => {
-                print!("${:02X}{:02X}", args[2], args[1]);
+                self.logged_instruction.push_str(&format!("${:02X}{:02X}", args[2], args[1]));
                 if use_postfix {
-                    print!(" = {:02X}", end_val);
-                    print_spaces!(18);
+                    self.logged_instruction.push_str(&format!(" = {:02X}", end_val));
                 } else {
-                    print_spaces!(23);
                 }
             }
             AddressingMode::AbsoluteX => {
                 self.r_pc += 1;
-                print!(
+                let addr = self.get_address(opcode.mode());
+                self.logged_instruction.push_str(&format!(
                     "${:02X}{:02X},X @ {:04X} = {:02X}",
                     args[2],
                     args[1],
-                    self.get_address(opcode.mode()),
+                    addr,
                     end_val
-                );
-                print_spaces!(9);
+                ));
             }
             AddressingMode::AbsoluteY => {
                 self.r_pc += 1;
-                print!(
+                let addr = self.get_address(opcode.mode());
+                self.logged_instruction.push_str(&format!(
                     "${:02X}{:02X},Y @ {:04X} = {:02X}",
                     args[2],
                     args[1],
-                    self.get_address(opcode.mode()),
+                    addr,
                     end_val
-                );
-                print_spaces!(9);
+                ));
             }
             AddressingMode::Immediate => {
-                print!("#${:02X}", args[1]);
-                print_spaces!(24);
+                self.logged_instruction.push_str(&format!("#${:02X}", args[1]));
             }
             AddressingMode::Indirect => {
-                print!("(${:02X}{:02X}) = {:04X}", args[2], args[1], end_val);
-                print_spaces!(14);
+                self.logged_instruction.push_str(&format!("(${:02X}{:02X}) = {:04X}", args[2], args[1], end_val));
             }
             AddressingMode::IndirectX => {
                 let addr1: u8 = args[1].wrapping_add(self.r_x);
                 self.r_pc = self.r_pc.wrapping_add(1);
-                print!(
+                let indirect_x_ptr = self.indirect_x_ptr();
+                self.logged_instruction.push_str(&format!(
                     "(${:02X},X) @ {:02X} = {:04X} = {:02X}",
                     args[1],
                     addr1,
-                    self.indirect_x_ptr(),
+                    indirect_x_ptr,
                     end_val
-                );
-                print_spaces!(4);
+                ));
             }
             AddressingMode::IndirectY => {
                 self.r_pc = self.r_pc.wrapping_add(1);
                 let (addr2, addr1) = self.indirect_y_ptr();
-                print!(
+                self.logged_instruction.push_str(&format!(
                     "(${:02X}),Y = {:04X} @ {:04X} = {:02X}",
                     args[1], addr1, addr2, end_val
-                );
-                print_spaces!(2);
+                ));
             }
             AddressingMode::ZeroPage => {
-                print!("${:02X} = {:02X}", self.read(self.r_pc + 1), end_val);
-                //self.dump_ram();
-                print_spaces!(20);
+                let val = self.read(self.r_pc + 1);
+                self.logged_instruction.push_str(&format!("${:02X} = {:02X}", val, end_val));
             }
             AddressingMode::ZeroPageX => {
-                print!(
+                let val = self.read(self.r_pc + 1).wrapping_add(self.r_x);
+                self.logged_instruction.push_str(&format!(
                     "${:02X},X @ {:02X} = {:02X}",
                     args[1],
-                    self.read(self.r_pc + 1).wrapping_add(self.r_x),
+                    val,
                     end_val
-                );
-                print_spaces!(13);
+                ));
             }
             AddressingMode::ZeroPageY => {
-                print!(
+                let val = self.read(self.r_pc + 1).wrapping_add(self.r_y);
+                self.logged_instruction.push_str(&format!(
                     "${:02X},Y @ {:02X} = {:02X}",
                     args[1],
-                    self.read(self.r_pc + 1).wrapping_add(self.r_y),
+                    val,
                     end_val
-                );
-                print_spaces!(13);
+                ));
             }
             AddressingMode::Relative => {
-                print!("${:04X}", end_val);
-                print_spaces!(23);
+                self.logged_instruction.push_str(&format!("${:04X}", end_val));
             }
             AddressingMode::Implicit => {
-                print_spaces!(28);
             }
         }
 
         self.r_pc = temp_pc;
 
-        let p = self.get_p(false);
-        println!(
-            "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
-            self.r_a, self.r_x, self.r_y, p, self.r_sp, self.cycles
-        );
+        self.bus.borrow_mut().set_cpu_debug_read(false);
     }
 
-    fn get_p(&mut self, f_b: bool) -> u8 {
+    fn get_p(&self, f_b: bool) -> u8 {
         let n_flag: u8 = if self.f_n { 1 } else { 0 };
         let v_flag: u8 = if self.f_v { 1 } else { 0 };
         let d_flag: u8 = if self.f_d { 1 } else { 0 };

@@ -6,14 +6,18 @@ use egui::{Context, TextureOptions};
 use rfd::FileDialog;
 
 pub struct NestApp {
+    // Emulator State
     emulator: Emulator,
     rom_path: Option<String>,
     frame_buffer: Vec<u8>,
     pattern_table_buffer: Vec<u8>,
     is_running: bool,
 
+    // UI State
     show_pattern_table: bool,
     show_cpu_state: bool,
+    raw_tick_amount: String,
+    tick_amout: usize,
 }
 
 impl eframe::App for NestApp {
@@ -64,6 +68,7 @@ impl eframe::App for NestApp {
                 .clicked()
             {
                 self.is_running = !self.is_running;
+                // self.emulator.toggle_debug_flag(crate::emulator::DebugFlag::Cpu);
             }
 
             if ui.button("Reset").clicked() {
@@ -116,11 +121,20 @@ impl eframe::App for NestApp {
             .open(&mut self.show_cpu_state)
             .show(ctx, |ui| {
                 if !self.is_running {
+                    if ui.text_edit_singleline(&mut self.raw_tick_amount).lost_focus() {
+                        if let Ok(ticks) = self.raw_tick_amount.parse::<usize>() {
+                            self.tick_amout = ticks;
+                        }
+                    }
+
                     if ui.button("Tick").clicked() {
-                        self.emulator.tick(&mut |frame, pattern_table| {
-                            self.frame_buffer = frame.rgb().to_owned();
-                            self.pattern_table_buffer = pattern_table.rgb().to_owned();
-                        });
+                        for _ in 0..self.tick_amout {
+                            //println!("{}", self.emulator.get_logged_instr());
+                            self.emulator.tick(&mut |frame, pattern_table| {
+                                self.frame_buffer = frame.rgb().to_owned();
+                                self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                            });
+                        }
                     }
                     if ui.button("Next Frame").clicked() {
                         self.emulator.step_frame(&mut |frame, pattern_table| {
@@ -134,7 +148,15 @@ impl eframe::App for NestApp {
                 ui.label(format!("a: {:#04x}", emu_state.cpu_r_a));
                 ui.label(format!("x: {:#04x}", emu_state.cpu_r_x));
                 ui.label(format!("y: {:#04x}", emu_state.cpu_r_y));
+                ui.label("Flags");
+                ui.label(format!("z: {}", emu_state.cpu_f_z));
+                ui.label(format!("c: {}", emu_state.cpu_f_c));
+                ui.label(format!("d: {}", emu_state.cpu_f_d));
+                ui.label(format!("i: {}", emu_state.cpu_f_i));
+                ui.label(format!("n: {}", emu_state.cpu_f_n));
+                ui.label(format!("v: {}", emu_state.cpu_f_v));
                 ui.label(format!("sp: {:#06x}", emu_state.cpu_r_sp));
+                ui.label(self.emulator.get_logged_instr());
             });
 
         ctx.request_repaint();
@@ -151,6 +173,9 @@ impl NestApp {
             is_running: false,
             show_pattern_table: false,
             show_cpu_state: false,
+            raw_tick_amount: String::new(),
+            tick_amout: 1,
+
         }
     }
 }
