@@ -12,8 +12,8 @@ fn main() {
     emulator.set_debug_mode(vec![DebugMode::Ppu]);
 
     let cartridge = Cartridge::new("./roms/DonkeyKong.nes".to_string()).unwrap();
-    //emulator.load_cartridge(cartridge);
-    //emulator.reset();
+    emulator.load_cartridge(cartridge);
+    emulator.reset();
 
     let options = eframe::NativeOptions {
         ..Default::default()

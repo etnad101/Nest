@@ -11,6 +11,9 @@ pub struct NestApp {
     frame_buffer: Vec<u8>,
     pattern_table_buffer: Vec<u8>,
     is_running: bool,
+
+    show_pattern_table: bool,
+    show_cpu_state: bool,
 }
 
 impl eframe::App for NestApp {
@@ -19,9 +22,26 @@ impl eframe::App for NestApp {
         if self.is_running {
             self.emulator.step_frame(&mut |frame, pattern_table| {
                 self.frame_buffer = frame.rgb().to_owned();
-                self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                if self.show_pattern_table {
+                    self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                }
             });
         }
+
+        egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("Options", |ui| {
+                    if ui.button("Pattern Table").clicked() {
+                        self.show_pattern_table = true;
+                        ui.close_menu();
+                    }
+                    if ui.button("Cpu State").clicked() {
+                        self.show_cpu_state = true;
+                        ui.close_menu();
+                    }
+                });
+            });
+        });
 
         egui::SidePanel::left("controls").show(ctx, |ui| {
             ui.heading("Nes Emulator Controls");
@@ -49,28 +69,6 @@ impl eframe::App for NestApp {
             if ui.button("Reset").clicked() {
                 self.emulator.reset();
             }
-
-            if !self.is_running {
-                if ui.button("Tick").clicked() {
-                    self.emulator.tick(&mut |frame, pattern_table| {
-                        self.frame_buffer = frame.rgb().to_owned();
-                        self.pattern_table_buffer = pattern_table.rgb().to_owned();
-                    });
-                }
-                if ui.button("Next Frame").clicked() {
-                    self.emulator.step_frame(&mut |frame, pattern_table| {
-                        self.frame_buffer = frame.rgb().to_owned();
-                        self.pattern_table_buffer = pattern_table.rgb().to_owned();
-                    });
-                }
-            }
-
-            ui.label(format!("pc: {:#06x}", emu_state.cpu_r_pc));
-            ui.label(format!("cycles: {}", emu_state.cpu_cycles));
-            ui.label(format!("a: {:#04x}", emu_state.cpu_r_a));
-            ui.label(format!("x: {:#04x}", emu_state.cpu_r_x));
-            ui.label(format!("y: {:#04x}", emu_state.cpu_r_y));
-            ui.label(format!("sp: {:#06x}", emu_state.cpu_r_sp));
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -91,26 +89,53 @@ impl eframe::App for NestApp {
             }
         });
 
-        egui::Window::new("Pattern Tables").show(ctx, |ui| {
-            if !self.pattern_table_buffer.is_empty() {
-                let size = [
-                    crate::emulator::PATTERN_TABLE_WIDTH,
-                    crate::emulator::PATTERN_TABLE_HEIGHT,
-                ];
-                let image = egui::ColorImage::from_rgb(size, &self.pattern_table_buffer);
-                let texture = ctx.load_texture(
-                    "pattern_table",
-                    image,
-                    TextureOptions {
-                        magnification: TextureFilter::Nearest,
-                        minification: TextureFilter::Nearest,
-                        wrap_mode: TextureWrapMode::ClampToEdge,
-                        mipmap_mode: None,
-                    },
-                );
-                ui.image(&texture);
-            }
-        });
+        egui::Window::new("Pattern Tables")
+            .open(&mut self.show_pattern_table)
+            .show(ctx, |ui| {
+                if !self.pattern_table_buffer.is_empty() {
+                    let size = [
+                        crate::emulator::PATTERN_TABLE_WIDTH,
+                        crate::emulator::PATTERN_TABLE_HEIGHT,
+                    ];
+                    let image = egui::ColorImage::from_rgb(size, &self.pattern_table_buffer);
+                    let texture = ctx.load_texture(
+                        "pattern_table",
+                        image,
+                        TextureOptions {
+                            magnification: TextureFilter::Nearest,
+                            minification: TextureFilter::Nearest,
+                            wrap_mode: TextureWrapMode::ClampToEdge,
+                            mipmap_mode: None,
+                        },
+                    );
+                    ui.image(&texture);
+                }
+            });
+
+        egui::Window::new("Cpu State")
+            .open(&mut self.show_cpu_state)
+            .show(ctx, |ui| {
+                if !self.is_running {
+                    if ui.button("Tick").clicked() {
+                        self.emulator.tick(&mut |frame, pattern_table| {
+                            self.frame_buffer = frame.rgb().to_owned();
+                            self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                        });
+                    }
+                    if ui.button("Next Frame").clicked() {
+                        self.emulator.step_frame(&mut |frame, pattern_table| {
+                            self.frame_buffer = frame.rgb().to_owned();
+                            self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                        });
+                    }
+                }
+                ui.label(format!("pc: {:#06x}", emu_state.cpu_r_pc));
+                ui.label(format!("cycles: {}", emu_state.cpu_cycles));
+                ui.label(format!("a: {:#04x}", emu_state.cpu_r_a));
+                ui.label(format!("x: {:#04x}", emu_state.cpu_r_x));
+                ui.label(format!("y: {:#04x}", emu_state.cpu_r_y));
+                ui.label(format!("sp: {:#06x}", emu_state.cpu_r_sp));
+            });
 
         ctx.request_repaint();
     }
@@ -124,6 +149,8 @@ impl NestApp {
             frame_buffer: vec![],
             pattern_table_buffer: vec![],
             is_running: false,
+            show_pattern_table: false,
+            show_cpu_state: false,
         }
     }
 }

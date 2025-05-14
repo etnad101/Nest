@@ -236,6 +236,7 @@ impl Cpu {
         if !self.debug {
             return;
         }
+        panic!("WARNING: Do not use cpu debug mode, it is broken and changes the way the emulator runs");
         print!("{:04X}  ", self.r_pc);
 
         let mut args: [u8; 3] = [0; 3];

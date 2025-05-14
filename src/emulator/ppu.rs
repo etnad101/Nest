@@ -96,8 +96,8 @@ impl Ppu {
             0x2000 => self.ppu_ctrl,
             0x2001 => self.ppu_mask,
             0x2002 => {
-                self.r_w = 0;
                 let value = self.ppu_status;
+                self.r_w = 0;
                 self.ppu_status &= 0x7F;
                 value
             }
@@ -199,28 +199,22 @@ impl Ppu {
     }
 
     pub fn draw_tile(&mut self, x: usize, y: usize, tile_num: usize) {
-        let base_addr = tile_num * 16;
+        let base_addr = (tile_num | ((self.ppu_ctrl as usize & 0x10) << 4)) * 16;
 
-        for offset in 0..16 {
-            let addr = base_addr + offset;
-            let fine_y = addr & 7;
-            let plane_sig = (addr & 8) >> 3;
+        for row in 0..8 {
+            let plane0 = self.read((base_addr + row) as u16);
+            let plane1 = self.read((base_addr + row + 8) as u16);
 
-            let bit_plane = self.read(addr as u16);
+            for col in 0..8 {
+                let bit0 = (plane0 >> (7 - col)) & 1;
+                let bit1 = (plane1 >> (7 - col)) & 1;
+                let color_index = (bit1 << 1) | bit0;
 
-            for bit_num in 0..8 {
-                let mask = 0x80 >> bit_num;
-                let bit = if (bit_plane & mask) > 0 { 1 } else { 0 };
-                let pixel_addr = (NES_WIDTH * fine_y) + (8 * x) + bit_num + (y * NES_WIDTH * 7);
+                let pixel_x = x * 8 + col;
+                let pixel_y = y * 8 + row;
+                let pixel_addr = pixel_y * NES_WIDTH + pixel_x;
 
-                if plane_sig == 0 {
-                    self.frame_buffer.write(pixel_addr, bit);
-                } else {
-                    let lsb = self.frame_buffer.read(pixel_addr);
-                    let color_offset = (bit << 1) | lsb;
-                    self.frame_buffer
-                        .write(pixel_addr, self.get_color(color_offset));
-                }
+                self.frame_buffer.write(pixel_addr, self.get_color(color_index as u32));
             }
         }
     }
@@ -265,7 +259,7 @@ impl Ppu {
         let mut x = 0;
         let mut y = 0;
 
-        for addr in 0..0x400 {
+        for addr in 0..0x3c0 {
             let tile = self.vram[addr];
             self.draw_tile(x, y, tile as usize);
 
