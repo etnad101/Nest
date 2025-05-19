@@ -129,7 +129,6 @@ impl eframe::App for NestApp {
 
                     if ui.button("Tick").clicked() {
                         for _ in 0..self.tick_amout {
-                            //println!("{}", self.emulator.get_logged_instr());
                             self.emulator.tick(&mut |frame, pattern_table| {
                                 self.frame_buffer = frame.rgb().to_owned();
                                 self.pattern_table_buffer = pattern_table.rgb().to_owned();
@@ -143,19 +142,19 @@ impl eframe::App for NestApp {
                         });
                     }
                 }
-                ui.label(format!("pc: {:#06x}", emu_state.cpu_r_pc));
-                ui.label(format!("cycles: {}", emu_state.cpu_cycles));
-                ui.label(format!("a: {:#04x}", emu_state.cpu_r_a));
-                ui.label(format!("x: {:#04x}", emu_state.cpu_r_x));
-                ui.label(format!("y: {:#04x}", emu_state.cpu_r_y));
+                ui.label(format!("pc: {:#06x}", emu_state.r_pc));
+                ui.label(format!("cycles: {}", emu_state.cycles));
+                ui.label(format!("a: {:#04x}", emu_state.r_a));
+                ui.label(format!("x: {:#04x}", emu_state.r_x));
+                ui.label(format!("y: {:#04x}", emu_state.r_y));
                 ui.label("Flags");
-                ui.label(format!("z: {}", emu_state.cpu_f_z));
-                ui.label(format!("c: {}", emu_state.cpu_f_c));
-                ui.label(format!("d: {}", emu_state.cpu_f_d));
-                ui.label(format!("i: {}", emu_state.cpu_f_i));
-                ui.label(format!("n: {}", emu_state.cpu_f_n));
-                ui.label(format!("v: {}", emu_state.cpu_f_v));
-                ui.label(format!("sp: {:#06x}", emu_state.cpu_r_sp));
+                ui.label(format!("z: {}", emu_state.f_z));
+                ui.label(format!("c: {}", emu_state.f_c));
+                ui.label(format!("d: {}", emu_state.f_d));
+                ui.label(format!("i: {}", emu_state.f_i));
+                ui.label(format!("n: {}", emu_state.f_n));
+                ui.label(format!("v: {}", emu_state.f_v));
+                ui.label(format!("sp: {:#06x}", emu_state.r_sp));
                 ui.label(self.emulator.get_logged_instr());
             });
 

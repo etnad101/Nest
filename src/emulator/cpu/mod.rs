@@ -1,7 +1,7 @@
-mod opcode;
+pub mod opcode;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{bus::Bus, EmulatorState};
+use super::{bus::Bus, CpuState};
 use opcode::{Opcode, OpcodeName};
 
 pub const CLOCK_SPEED: usize = 21_441_960;
@@ -87,32 +87,32 @@ impl Cpu {
         }
     }
 
-    pub fn get_state(&self) -> EmulatorState {
+    pub fn get_state(&self) -> CpuState {
         let p = self.get_p(false);
-        EmulatorState {
-            cpu_cycles: self.cycles,
-            cpu_r_a: self.r_a,
-            cpu_r_x: self.r_x,
-            cpu_r_y: self.r_y,
-            cpu_r_sp: self.r_sp,
-            cpu_r_pc: self.r_pc,
-            cpu_f_c: self.f_c,
-            cpu_f_z: self.f_z,
-            cpu_f_i: self.f_i,
-            cpu_f_d: self.f_d,
-            cpu_f_v: self.f_v,
-            cpu_f_n: self.f_n,
-            cpu_p: p,
+        CpuState {
+            cycles: self.cycles,
+            r_a: self.r_a,
+            r_x: self.r_x,
+            r_y: self.r_y,
+            r_sp: self.r_sp,
+            r_pc: self.r_pc,
+            f_c: self.f_c,
+            f_z: self.f_z,
+            f_i: self.f_i,
+            f_d: self.f_d,
+            f_v: self.f_v,
+            f_n: self.f_n,
+            p: p,
         }
     }
 
-    pub fn load_state(&mut self, state: EmulatorState) {
-        self.r_pc = state.cpu_r_pc;
-        self.r_sp = state.cpu_r_sp;
-        self.r_a = state.cpu_r_a;
-        self.r_x = state.cpu_r_x;
-        self.r_y = state.cpu_r_x;
-        self.set_p(state.cpu_p, false);
+    pub fn load_state(&mut self, state: CpuState) {
+        self.r_pc = state.r_pc;
+        self.r_sp = state.r_sp;
+        self.r_a = state.r_a;
+        self.r_x = state.r_x;
+        self.r_y = state.r_y;
+        self.set_p(state.p, true);
     }
 
     pub fn get_logged_instr(&self) -> String {
@@ -774,7 +774,7 @@ impl Cpu {
     }
 
     fn i_brk(&mut self) {
-        let addr = self.r_pc + 2;
+        let addr = self.r_pc + 1;
         let lo = addr as u8;
         let hi = (addr >> 8) as u8;
         let p = self.get_p(true);
@@ -785,6 +785,9 @@ impl Cpu {
 
         self.f_i = true;
         self.r_pc = 0xFFFE;
+        let lo = self.read(self.r_pc) as u16;
+        let hi = self.read(self.r_pc + 1) as u16;
+        self.r_pc = (hi << 8) | lo;
     }
 
     fn i_rti(&mut self) {
@@ -891,7 +894,7 @@ impl Cpu {
             }
             OpcodeName::Plp => {
                 let p = self.pop_stack();
-                self.set_p(p, false);
+                self.set_p(p, true);
             }
             OpcodeName::Txs => self.r_sp = self.r_x,
             OpcodeName::Tsx => {
@@ -901,12 +904,10 @@ impl Cpu {
             OpcodeName::Clc => self.f_c = false,
             OpcodeName::Sec => self.f_c = true,
             OpcodeName::Cli => {
-                self.pending_iflag_value = false;
-                self.pending_iflag_update = true;
+                self.f_i = false;
             }
             OpcodeName::Sei => {
-                self.pending_iflag_value = true;
-                self.pending_iflag_update = true;
+                self.f_i = true;
             }
             OpcodeName::Cld => self.f_d = false,
             OpcodeName::Sed => self.f_d = true,
@@ -939,7 +940,7 @@ impl Cpu {
 
         self.cycles = 5;
         // TODO: remove this when not using nestest
-        // self.r_pc = 0xC000;
+        // self.r_pc = 0xC000; 
         // self.cycles += 2;
     }
 

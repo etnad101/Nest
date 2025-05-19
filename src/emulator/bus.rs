@@ -1,5 +1,4 @@
-use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu, FrameBuffer, NES_HEIGHT, NES_WIDTH};
-use egui::Frame;
+use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu, FrameBuffer};
 use std::{cell::RefCell, rc::Rc};
 
 pub const RAM_SIZE: usize = 0x800;
@@ -11,6 +10,8 @@ pub struct Bus {
     io: Io,
     cartridge_inserted: bool,
     cartridge: Option<Rc<RefCell<Cartridge>>>,
+    raw_mem: Box<[u8; 0x10000]>,
+    pub json_test_mode: bool,
 }
 
 impl Bus {
@@ -22,6 +23,8 @@ impl Bus {
             io: Io::new(),
             cartridge_inserted: false,
             cartridge: None,
+            raw_mem: Box::new([0; 0x10000]),
+            json_test_mode: false,
         }
     }
 
@@ -31,12 +34,16 @@ impl Bus {
         self.ppu.set_cartridge(Some(cartridge));
         self.cartridge_inserted = true;
     }
-    
+
     pub fn set_cpu_debug_read(&mut self, mode: bool) {
         self.ppu.cpu_debug_read = mode;
     }
 
     pub fn cpu_read(&mut self, addr: u16) -> u8 {
+        if self.json_test_mode {
+            return self.raw_mem[addr as usize];
+        }
+
         // RAM & Mirrors $0000-$1FFF
         if addr < 0x2000 {
             return self.wram[(addr & 0x07FF) as usize];
@@ -69,6 +76,9 @@ impl Bus {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
+        if self.json_test_mode {
+            return self.raw_mem[addr as usize] = value;
+        }
         if addr < 0x2000 {
             self.wram[(addr & 0x07FF) as usize] = value;
             return;
