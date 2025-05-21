@@ -32,5 +32,5 @@ fn main() {
         options,
         Box::new(|_cc| Ok(Box::new(NestApp::new(emulator)))),
     )
-    .unwrap()
+    .unwrap();
 }

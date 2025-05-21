@@ -253,26 +253,29 @@ impl Cpu {
         if !self.debug {
             return;
         }
+
+        let temp_pc = self.r_pc;
+        let mut use_suffix = false;
+
         self.bus.borrow_mut().set_cpu_debug_read(true);
+
         self.logged_instruction = format!("{:04X}  ", self.r_pc);
 
         let mut args: [u8; 3] = [0; 3];
 
         for i in 0..opcode.bytes() {
             let byte = self.read(self.r_pc + i);
-            self.logged_instruction.push_str(&format!("{:02X} ", byte));
+            self.logged_instruction.push_str(&format!("{byte:02X} "));
             args[i as usize] = byte;
         }
 
         for _ in 0..3 - opcode.bytes() {
-            self.logged_instruction.push_str(&format!("   "));
+            self.logged_instruction.push_str("   ");
         }
 
         self.logged_instruction.push_str(&format!(" {} ", opcode.name()));
 
-        let temp_pc = self.r_pc;
-        let mut use_postfix = false;
-
+        // TODO: Something here is messing up the cpu state
         let end_val: usize = match opcode.name() {
             OpcodeName::Bcc
             | OpcodeName::Bcs
@@ -309,7 +312,7 @@ impl Cpu {
                 if let AddressingMode::Accumulator = opcode.mode() {
                     0
                 } else {
-                    use_postfix = true;
+                    use_suffix = true;
                     self.r_pc += 1;
                     let addr = self.get_address(opcode.mode());
                     self.read(addr).into()
@@ -320,7 +323,7 @@ impl Cpu {
                     0
                 } else {
                     self.r_pc += 1;
-                    use_postfix = true;
+                    use_suffix = true;
                     self.get_address(opcode.mode()).into()
                 }
             }
@@ -331,12 +334,12 @@ impl Cpu {
 
         match opcode.mode() {
             AddressingMode::Accumulator => {
-                self.logged_instruction.push_str(&format!("A"));
+                self.logged_instruction.push('A');
             }
             AddressingMode::Absolute => {
                 self.logged_instruction.push_str(&format!("${:02X}{:02X}", args[2], args[1]));
-                if use_postfix {
-                    self.logged_instruction.push_str(&format!(" = {:02X}", end_val));
+                if use_suffix {
+                    self.logged_instruction.push_str(&format!(" = {end_val:02X}"));
                 } else {
                 }
             }
@@ -390,7 +393,7 @@ impl Cpu {
             }
             AddressingMode::ZeroPage => {
                 let val = self.read(self.r_pc + 1);
-                self.logged_instruction.push_str(&format!("${:02X} = {:02X}", val, end_val));
+                self.logged_instruction.push_str(&format!("${val:02X} = {end_val:02X}"));
             }
             AddressingMode::ZeroPageX => {
                 let val = self.read(self.r_pc + 1).wrapping_add(self.r_x);
@@ -411,7 +414,7 @@ impl Cpu {
                 ));
             }
             AddressingMode::Relative => {
-                self.logged_instruction.push_str(&format!("${:04X}", end_val));
+                self.logged_instruction.push_str(&format!("${end_val:04X}"));
             }
             AddressingMode::Implicit => {
             }
@@ -423,13 +426,13 @@ impl Cpu {
     }
 
     fn get_p(&self, f_b: bool) -> u8 {
-        let n_flag: u8 = if self.f_n { 1 } else { 0 };
-        let v_flag: u8 = if self.f_v { 1 } else { 0 };
-        let d_flag: u8 = if self.f_d { 1 } else { 0 };
-        let i_flag: u8 = if self.f_i { 1 } else { 0 };
-        let z_flag: u8 = if self.f_z { 1 } else { 0 };
-        let c_flag: u8 = if self.f_c { 1 } else { 0 };
-        let b_flag: u8 = if f_b { 1 } else { 0 };
+        let n_flag: u8 = u8::from(self.f_n);
+        let v_flag: u8 = u8::from(self.f_v);
+        let d_flag: u8 = u8::from(self.f_d);
+        let i_flag: u8 = u8::from(self.f_i);
+        let z_flag: u8 = u8::from(self.f_z);
+        let c_flag: u8 = u8::from(self.f_c);
+        let b_flag: u8 = u8::from(f_b);
 
         (n_flag << 7)
             | (v_flag << 6)
@@ -489,42 +492,42 @@ impl Cpu {
         match op_name {
             OpcodeName::Bcc => {
                 if !self.f_c {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Bcs => {
                 if self.f_c {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Beq => {
                 if self.f_z {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Bne => {
                 if !self.f_z {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Bpl => {
                 if !self.f_n {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Bmi => {
                 if self.f_n {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Bvc => {
                 if !self.f_v {
-                    branch = true
+                    branch = true;
                 }
             }
             OpcodeName::Bvs => {
                 if self.f_v {
-                    branch = true
+                    branch = true;
                 }
             }
             _ => panic!("ERROR: Only branch opcodes should be calling this function"),
@@ -562,7 +565,7 @@ impl Cpu {
         self.r_a = self.read(addr);
         self.update_zn_flags(self.r_a);
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 
@@ -576,7 +579,7 @@ impl Cpu {
         self.r_x = self.read(addr);
         self.update_zn_flags(self.r_x);
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 
@@ -590,7 +593,7 @@ impl Cpu {
         self.r_y = self.read(addr);
         self.update_zn_flags(self.r_y);
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 
@@ -620,7 +623,7 @@ impl Cpu {
         self.update_zn_flags(self.r_a);
 
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 
@@ -681,7 +684,7 @@ impl Cpu {
     fn i_rol(&mut self, mode: AddressingMode) {
         let value: u8;
         let new_value;
-        let carry_bit = if self.f_c { 1 } else { 0 };
+        let carry_bit = u8::from(self.f_c);
 
         if let AddressingMode::Accumulator = mode {
             value = self.r_a;
@@ -725,7 +728,7 @@ impl Cpu {
         self.r_a &= self.read(addr);
         self.update_zn_flags(self.r_a);
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 
@@ -734,7 +737,7 @@ impl Cpu {
         self.r_a |= self.read(addr);
         self.update_zn_flags(self.r_a);
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 
@@ -743,7 +746,7 @@ impl Cpu {
         self.r_a ^= self.read(addr);
         self.update_zn_flags(self.r_a);
         if self.page_crossed {
-            self.cycles += 1
+            self.cycles += 1;
         }
     }
 

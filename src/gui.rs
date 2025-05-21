@@ -25,9 +25,9 @@ impl eframe::App for NestApp {
         let emu_state = self.emulator.get_state();
         if self.is_running {
             self.emulator.step_frame(&mut |frame, pattern_table| {
-                self.frame_buffer = frame.rgb().to_owned();
+                self.frame_buffer.clone_from(&frame.rgb());
                 if self.show_pattern_table {
-                    self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                    self.pattern_table_buffer.clone_from(&pattern_table.rgb());
                 }
             });
         }
@@ -58,7 +58,7 @@ impl eframe::App for NestApp {
                             self.emulator.load_cartridge(c);
                             self.emulator.reset();
                         }
-                        Err(e) => println!("{}", e),
+                        Err(e) => println!("{e}"),
                     };
                 };
             }
@@ -130,15 +130,15 @@ impl eframe::App for NestApp {
                     if ui.button("Tick").clicked() {
                         for _ in 0..self.tick_amout {
                             self.emulator.tick(&mut |frame, pattern_table| {
-                                self.frame_buffer = frame.rgb().to_owned();
-                                self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                                self.frame_buffer.clone_from(&frame.rgb());
+                                self.pattern_table_buffer.clone_from(&pattern_table.rgb());
                             });
                         }
                     }
                     if ui.button("Next Frame").clicked() {
                         self.emulator.step_frame(&mut |frame, pattern_table| {
-                            self.frame_buffer = frame.rgb().to_owned();
-                            self.pattern_table_buffer = pattern_table.rgb().to_owned();
+                            self.frame_buffer.clone_from(&frame.rgb());
+                            self.pattern_table_buffer.clone_from(&pattern_table.rgb());
                         });
                     }
                 }

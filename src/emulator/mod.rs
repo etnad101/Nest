@@ -43,7 +43,7 @@ impl FrameBuffer {
 
     pub fn rgb(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(self.buf.len() * 3);
-        for &pixel in self.buf.iter() {
+        for &pixel in &self.buf {
             let r = ((pixel & 0xFF0000) >> 16) as u8;
             let g = ((pixel & 0x00FF00) >> 8) as u8;
             let b = (pixel & 0x0000FF) as u8;
@@ -128,19 +128,19 @@ impl Emulator {
 
     pub fn set_debug_flag(&mut self, flag: DebugFlag) {
         if !self.debug.contains(&flag) {
-            self.debug.push(flag)
+            self.debug.push(flag);
         }
         self.update_internal_debug_mode();
     }
 
-    pub fn clear_debug_flag(&mut self, flag: DebugFlag) {
-        self.debug.retain(|x| x != &flag);
+    pub fn clear_debug_flag(&mut self, flag: &DebugFlag) {
+        self.debug.retain(|x| x != flag);
         self.update_internal_debug_mode();
     }
 
     pub fn toggle_debug_flag(&mut self, flag: DebugFlag) {
         if self.debug.contains(&flag) {
-            self.clear_debug_flag(flag);
+            self.clear_debug_flag(&flag);
         } else {
             self.set_debug_flag(flag);
         }
@@ -187,7 +187,7 @@ impl Emulator {
             handle_display(
                 self.bus.borrow().get_frame(),
                 self.bus.borrow().get_pattern_table(),
-            )
+            );
         }
     }
 
@@ -211,7 +211,7 @@ impl Emulator {
         handle_display(
             self.bus.borrow().get_frame(),
             self.bus.borrow().get_pattern_table(),
-        )
+        );
     }
 
     pub fn run_with_callback<T>(&mut self, handle_display: &mut T)

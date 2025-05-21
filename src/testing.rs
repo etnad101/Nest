@@ -80,7 +80,7 @@ fn run_single_test(emulator: &mut Emulator, test: JsonData) -> bool {
         let res = emulator.read(addr);
 
         if res != expected {
-            println!("mem not eq @ {} -> result: {} != expected: {}", addr, res, expected);
+            println!("mem not eq @ {addr} -> result: {res} != expected: {expected}");
             return false;
         }
     }
@@ -88,17 +88,14 @@ fn run_single_test(emulator: &mut Emulator, test: JsonData) -> bool {
     true
 }
 
-fn test_valid_opcode(name: &String) -> bool {
-    let split: Vec<&str> = name.split(" ").collect();
+fn test_valid_opcode(name: &str) -> bool {
+    let split: Vec<&str> = name.split(' ').collect();
 
     let opcode = u8::from_str_radix(split[0], 16).unwrap();
 
     let binding = crate::emulator::cpu::opcode::Opcode::get_opcode_map();
     let found = binding.get(&opcode);
-    match found {
-        Some(_) => true,
-        None => false
-    }
+    found.is_some()
 }
 
 pub fn run_json_tests(emulator: &mut Emulator) {
@@ -123,7 +120,7 @@ pub fn run_json_tests(emulator: &mut Emulator) {
         for test in tests {
             print!("\r{} running test {}/{}, {} passed ", test.name, current_test, total_tests, passed_tests);
             if run_single_test(emulator, test) {
-                passed_tests += 1 
+                passed_tests += 1;
             } 
             current_test += 1;
         }

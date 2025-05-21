@@ -112,7 +112,7 @@ impl Ppu {
             0x2006 => unimplemented!("read PPU reg 0x2006 isn't implemented yet"),
             0x2007 => self.ppu_data,
             0x4014 => self.oam_dma,
-            _ => panic!("Address (${:04X}) is not a ppu register", addr),
+            _ => panic!("Address (${addr:04X}) is not a ppu register"),
         }
     }
 
@@ -141,7 +141,7 @@ impl Ppu {
                     self.r_t = (value as u16 & 0x3F) << 8;
                 } else {
                     self.r_t |= value as u16;
-                    self.r_v = self.r_t
+                    self.r_v = self.r_t;
                 }
                 self.r_w ^= 1;
             }
@@ -185,7 +185,7 @@ impl Ppu {
         self.dot += 1;
         if self.dot > 340 {
             self.scanline += 1;
-            self.dot = 0
+            self.dot = 0;
         }
 
         if self.scanline > 261 {
@@ -241,7 +241,7 @@ impl Ppu {
 
             for bit_num in 0..8 {
                 let mask = 0x80 >> bit_num;
-                let bit = if (bit_plane & mask) > 0 { 1 } else { 0 };
+                let bit = u32::from((bit_plane & mask) > 0); 
                 let pixel_addr = (PATTERN_TABLE_WIDTH * fine_y)
                     + (8 * tile_num)
                     + bit_num
@@ -252,7 +252,7 @@ impl Ppu {
                 } else {
                     let lsb = buf.read(pixel_addr);
                     let color_offset = (bit << 1) | lsb;
-                    buf.write(pixel_addr, self.get_color(color_offset))
+                    buf.write(pixel_addr, self.get_color(color_offset));
                 }
             }
         }
