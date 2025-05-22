@@ -22,7 +22,10 @@ pub struct NestApp {
 
 impl eframe::App for NestApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+        // grab emulator state each frame for gui
         let emu_state = self.emulator.get_state();
+
+        // tick emulator one frame and update buffers
         if self.is_running {
             self.emulator.step_frame(&mut |frame, pattern_table| {
                 self.frame_buffer.clone_from(&frame.rgb());
@@ -32,14 +35,18 @@ impl eframe::App for NestApp {
             });
         }
 
+        // top menu bar, to open debugging windows
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Options", |ui| {
+                    // open pattern table window
                     if ui.button("Pattern Table").clicked() {
                         self.show_pattern_table = true;
                         ui.close_menu();
                     }
-                    if ui.button("Cpu State").clicked() {
+
+                    // open cpu state and control window
+                    if ui.button("Cpu").clicked() {
                         self.show_cpu_state = true;
                         ui.close_menu();
                     }
@@ -47,9 +54,11 @@ impl eframe::App for NestApp {
             });
         });
 
+        // main left panel
         egui::SidePanel::left("controls").show(ctx, |ui| {
             ui.heading("Nes Emulator Controls");
 
+            // opens file explorer to select rom
             if ui.button("Open File").clicked() {
                 if let Some(path) = FileDialog::new().pick_file() {
                     self.rom_path = Some(path.display().to_string());
@@ -63,21 +72,29 @@ impl eframe::App for NestApp {
                 };
             }
 
+            // run/pause emulator running
             if ui
                 .button(if self.is_running { "Pause" } else { "Run" })
                 .clicked()
             {
                 self.is_running = !self.is_running;
-                // self.emulator.toggle_debug_flag(crate::emulator::DebugFlag::Cpu);
+                // only log cpu instructions when not running at full speed
+                // i.e. when ticking single instructions or frames
+                self.emulator
+                    .toggle_debug_flag(crate::emulator::DebugFlag::Cpu);
             }
 
+            // reset emulator
             if ui.button("Reset").clicked() {
                 self.emulator.reset();
             }
         });
 
+        // main panel showing emulator
         egui::CentralPanel::default().show(ctx, |ui| {
+            // only render if there is something to render
             if !self.frame_buffer.is_empty() {
+                // setup texture using frame buffer we got earlier from emulator
                 let size = [crate::emulator::NES_WIDTH, crate::emulator::NES_HEIGHT];
                 let image = egui::ColorImage::from_rgb(size, &self.frame_buffer);
                 let texture = ctx.load_texture(
@@ -90,14 +107,19 @@ impl eframe::App for NestApp {
                         mipmap_mode: None,
                     },
                 );
+                // render buffer as an egui image
                 ui.image(&texture);
             }
         });
 
+        // popup pattern table window
+        // shows pattern table of current inserted rom
         egui::Window::new("Pattern Tables")
             .open(&mut self.show_pattern_table)
             .show(ctx, |ui| {
+                // only render if there is something to render
                 if !self.pattern_table_buffer.is_empty() {
+                    // setup texture using frame buffer we got earlier from emulator
                     let size = [
                         crate::emulator::PATTERN_TABLE_WIDTH,
                         crate::emulator::PATTERN_TABLE_HEIGHT,
@@ -113,20 +135,30 @@ impl eframe::App for NestApp {
                             mipmap_mode: None,
                         },
                     );
+                    // render buffer as an egui image
                     ui.image(&texture);
                 }
             });
 
-        egui::Window::new("Cpu State")
+        // cpu state and control window
+        egui::Window::new("Cpu")
             .open(&mut self.show_cpu_state)
             .show(ctx, |ui| {
+                // only allow ticking single instuctions and frames when
+                // emulator is paused
                 if !self.is_running {
-                    if ui.text_edit_singleline(&mut self.raw_tick_amount).lost_focus() {
+                    // box to enter amout of instuctions to run when
+                    // tick button is pressed
+                    if ui
+                        .text_edit_singleline(&mut self.raw_tick_amount)
+                        .lost_focus()
+                    {
                         if let Ok(ticks) = self.raw_tick_amount.parse::<usize>() {
                             self.tick_amout = ticks;
                         }
                     }
 
+                    // tick emulator for specified amount of ticks
                     if ui.button("Tick").clicked() {
                         for _ in 0..self.tick_amout {
                             self.emulator.tick(&mut |frame, pattern_table| {
@@ -135,6 +167,8 @@ impl eframe::App for NestApp {
                             });
                         }
                     }
+
+                    // tick to the next frame
                     if ui.button("Next Frame").clicked() {
                         self.emulator.step_frame(&mut |frame, pattern_table| {
                             self.frame_buffer.clone_from(&frame.rgb());
@@ -142,6 +176,9 @@ impl eframe::App for NestApp {
                         });
                     }
                 }
+
+                // show cpu state (registers, flags and last instruction)
+                // view only at the moment but plans to change
                 ui.label(format!("pc: {:#06x}", emu_state.r_pc));
                 ui.label(format!("cycles: {}", emu_state.cycles));
                 ui.label(format!("a: {:#04x}", emu_state.r_a));
@@ -162,6 +199,7 @@ impl eframe::App for NestApp {
     }
 }
 
+// holds egui state
 impl NestApp {
     pub fn new(emulator: Emulator) -> Self {
         Self {
@@ -174,7 +212,6 @@ impl NestApp {
             show_cpu_state: false,
             raw_tick_amount: String::new(),
             tick_amout: 1,
-
         }
     }
 }

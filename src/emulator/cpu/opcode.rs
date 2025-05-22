@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use super::AddressingMode;
 
+// all official opcode names
 #[derive(Clone, Copy)]
-pub(super) enum OpcodeName {
+pub enum OpcodeName {
     Lda,
     Ldx,
     Ldy,
@@ -152,6 +153,7 @@ impl Opcode {
         }
     }
 
+    // creates a hash map with all the official opcodes
     pub fn get_opcode_map() -> HashMap<u8, Opcode> {
         let opcodes: Vec<Opcode> = vec![
             Opcode::new(0xA9, OpcodeName::Lda, 2, 2, AddressingMode::Immediate),

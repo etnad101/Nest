@@ -14,6 +14,7 @@ pub const PATTERN_TABLE_WIDTH: usize = 8 * 16;
 pub const PATTERN_TABLE_HEIGHT: usize = 8 * 32;
 pub const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
 
+// u32 vec with basic getters and setters
 pub struct FrameBuffer {
     buf: Vec<u32>,
 }
@@ -29,18 +30,22 @@ impl FrameBuffer {
         self.buf.is_empty()
     }
 
+    // read single value at index
     pub fn read(&self, index: usize) -> u32 {
         self.buf[index]
     }
 
+    // write single value at index
     pub fn write(&mut self, index: usize, value: u32) {
         self.buf[index] = value;
     }
 
+    // get ref to u32 vec
     pub fn raw(&self) -> &Vec<u32> {
         &self.buf
     }
 
+    // returns rgb u8 vec
     pub fn rgb(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(self.buf.len() * 3);
         for &pixel in &self.buf {
@@ -57,6 +62,7 @@ impl FrameBuffer {
     }
 }
 
+// struct to cleanly pass atround cpu state
 pub struct CpuState {
     pub cycles: usize,
     pub r_a: u8,
@@ -77,8 +83,7 @@ pub struct CpuState {
 pub enum DebugFlag {
     Cpu,
     Ppu,
-    Step,
-    Json
+    Json,
 }
 
 pub struct Emulator {
@@ -103,6 +108,7 @@ impl Emulator {
         }
     }
 
+    // helper function to set debug mode for all components
     fn update_internal_debug_mode(&mut self) {
         self.bus.borrow_mut().json_test_mode = false;
         self.cpu.set_debug_mode(false);
@@ -112,11 +118,10 @@ impl Emulator {
             match mode {
                 DebugFlag::Json => {
                     self.bus.borrow_mut().json_test_mode = true;
-                    return
+                    return;
                 }
                 DebugFlag::Cpu => self.cpu.set_debug_mode(true),
                 DebugFlag::Ppu => self.bus.borrow_mut().set_ppu_debug_mode(true),
-                DebugFlag::Step => (),
             }
         }
     }
@@ -154,20 +159,23 @@ impl Emulator {
         self.running = false;
     }
 
+    // get last instruction ecexuted by cpu
     pub fn get_logged_instr(&self) -> String {
         self.cpu.get_logged_instr()
     }
 
+    // reset cpu
     #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.cpu.reset();
     }
 
-
+    // load cartrtridge into bus
     pub fn load_cartridge(&mut self, cartridge: Cartridge) {
         self.bus.borrow_mut().load_cartridge(cartridge);
     }
 
+    // tick emulator one instruction
     pub fn tick<T>(&mut self, handle_display: &mut T)
     where
         T: FnMut(&FrameBuffer, FrameBuffer),
@@ -191,6 +199,7 @@ impl Emulator {
         }
     }
 
+    // tick emulator to the next frame
     pub fn step_frame<T>(&mut self, handle_display: &mut T)
     where
         T: FnMut(&FrameBuffer, FrameBuffer),
@@ -214,6 +223,7 @@ impl Emulator {
         );
     }
 
+    // run while emulator is set to running
     pub fn run_with_callback<T>(&mut self, handle_display: &mut T)
     where
         T: FnMut(&FrameBuffer, FrameBuffer),
@@ -222,14 +232,11 @@ impl Emulator {
         self.running = true;
 
         while self.running {
-            if self.debug.contains(&DebugFlag::Step) {
-                // TODO: make something pause until supposed to step
-            }
             self.tick(handle_display);
         }
     }
 
-    /* Testing functions */
+    /* functions to expose internal functions */
     pub fn get_state(&self) -> CpuState {
         self.cpu.get_state()
     }

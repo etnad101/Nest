@@ -124,6 +124,7 @@ impl Ppu {
             0x2003 => self.oam_addr = value,
             0x2004 => self.oam_data = value,
             0x2005 => {
+                // alternate between low and high byte on each write
                 let coarse = (value >> 3) as u16;
                 if self.r_w == 0 {
                     self.r_t &= 0b0111_1111_1110_0000;
@@ -177,6 +178,8 @@ impl Ppu {
         }
     }
 
+    // one ppu cycle
+    // should be called 3 times for every cpu cycle
     pub fn tick(&mut self) {
         if self.dot == 1 && self.scanline == 241 {
             self.ppu_status |= 0x80;
@@ -203,7 +206,8 @@ impl Ppu {
         }
     }
 
-    pub fn draw_tile(&mut self, x: usize, y: usize, tile_num: usize) {
+    // helper function to draw a tile into main buffer
+    fn draw_tile(&mut self, x: usize, y: usize, tile_num: usize) {
         let base_addr = (tile_num | ((self.ppu_ctrl as usize & 0x10) << 4)) * 16;
 
         for row in 0..8 {
@@ -219,11 +223,15 @@ impl Ppu {
                 let pixel_y = y * 8 + row;
                 let pixel_addr = pixel_y * NES_WIDTH + pixel_x;
 
-                self.frame_buffer.write(pixel_addr, self.get_color(color_index as u32));
+                self.frame_buffer
+                    .write(pixel_addr, self.get_color(color_index as u32));
             }
         }
     }
 
+    // debugging function to output a frame buffer with pattern_table
+    // does not need to run every frame
+    // TODO: make more efficient, dont need to update every frame
     pub fn pattern_table(&self) -> FrameBuffer {
         if !self.debug {
             return FrameBuffer::new(0, 0);
@@ -241,7 +249,7 @@ impl Ppu {
 
             for bit_num in 0..8 {
                 let mask = 0x80 >> bit_num;
-                let bit = u32::from((bit_plane & mask) > 0); 
+                let bit = u32::from((bit_plane & mask) > 0);
                 let pixel_addr = (PATTERN_TABLE_WIDTH * fine_y)
                     + (8 * tile_num)
                     + bit_num
@@ -260,6 +268,7 @@ impl Ppu {
         buf
     }
 
+    // draw nametable to main screen buffer
     pub fn draw_nametable(&mut self) {
         let mut x = 0;
         let mut y = 0;
@@ -280,6 +289,7 @@ impl Ppu {
         }
     }
 
+    // frame getter
     pub fn frame(&self) -> &FrameBuffer {
         &self.frame_buffer
     }

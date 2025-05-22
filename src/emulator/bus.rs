@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 
 pub const RAM_SIZE: usize = 0x800;
 
+// ties components together
 pub struct Bus {
     wram: Box<[u8; RAM_SIZE]>,
     ppu: Ppu,
@@ -28,6 +29,7 @@ impl Bus {
         }
     }
 
+    // makes shared reference to cartridge for bus and ppu
     pub fn load_cartridge(&mut self, cartridge: Cartridge) {
         let cartridge = Rc::new(RefCell::new(cartridge));
         self.cartridge = Some(cartridge.clone());
@@ -35,10 +37,7 @@ impl Bus {
         self.cartridge_inserted = true;
     }
 
-    pub fn set_cpu_debug_read(&mut self, mode: bool) {
-        self.ppu.cpu_debug_read = mode;
-    }
-
+    // mapped memory read for cpu
     pub fn cpu_read(&mut self, addr: u16) -> u8 {
         if self.json_test_mode {
             return self.raw_mem[addr as usize];
@@ -75,6 +74,7 @@ impl Bus {
         panic!("no cartridge inserted");
     }
 
+    // mapped memory write for cpu
     pub fn write(&mut self, addr: u16, value: u8) {
         if self.json_test_mode {
             return self.raw_mem[addr as usize] = value;
@@ -92,6 +92,12 @@ impl Bus {
             return;
         }
         panic!("ERROR: Writing to something i haven't implemented yet")
+    }
+
+    // make sure ppu dosen't update state when cpu is
+    // reading for debug purposes
+    pub fn set_cpu_debug_read(&mut self, mode: bool) {
+        self.ppu.cpu_debug_read = mode;
     }
 
     // Expose PPU functions to Emulator

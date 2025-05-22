@@ -6,12 +6,6 @@ use opcode::{Opcode, OpcodeName};
 
 pub const CLOCK_SPEED: usize = 21_441_960;
 
-macro_rules! print_spaces {
-    ($x:literal) => {
-        print!("{}", " ".repeat($x));
-    };
-}
-
 #[derive(Clone, Copy)]
 pub enum AddressingMode {
     Accumulator,
@@ -87,6 +81,7 @@ impl Cpu {
         }
     }
 
+    // return current cpu state
     pub fn get_state(&self) -> CpuState {
         let p = self.get_p(false);
         CpuState {
@@ -102,10 +97,11 @@ impl Cpu {
             f_d: self.f_d,
             f_v: self.f_v,
             f_n: self.f_n,
-            p: p,
+            p,
         }
     }
 
+    // set cpu state
     pub fn load_state(&mut self, state: CpuState) {
         self.r_pc = state.r_pc;
         self.r_sp = state.r_sp;
@@ -115,14 +111,18 @@ impl Cpu {
         self.set_p(state.p, true);
     }
 
+    // get string of last executes instruction
     pub fn get_logged_instr(&self) -> String {
         self.logged_instruction.clone()
     }
 
+    // enable/disable debug mode
     pub fn set_debug_mode(&mut self, debug: bool) {
         self.debug = debug;
     }
 
+    // print memory to stdout
+    // may be broken
     #[allow(unused)]
     fn dump_mem(&mut self, size: usize, width: usize) {
         println!();
@@ -136,14 +136,17 @@ impl Cpu {
         }
     }
 
+    // helper function to read from bus
     fn read(&mut self, addr: u16) -> u8 {
         self.bus.borrow_mut().cpu_read(addr)
     }
 
+    // helper function to write to bus
     fn write(&mut self, addr: u16, value: u8) {
         self.bus.borrow_mut().write(addr, value);
     }
 
+    // get address for indirect x adressing mode
     fn indirect_x_ptr(&mut self) -> u16 {
         let base: u8 = self.read(self.r_pc);
         self.r_pc += 1;
@@ -153,6 +156,7 @@ impl Cpu {
         (hi << 8) | lo
     }
 
+    // get address for indirect y adressing mode
     fn indirect_y_ptr(&mut self) -> (u16, u16) {
         let lo_ptr: u8 = self.read(self.r_pc);
         self.r_pc += 1;
@@ -168,6 +172,7 @@ impl Cpu {
         (addr, base_addr)
     }
 
+    // get adress using adressing mode
     fn get_address(&mut self, mode: AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => {
@@ -249,6 +254,8 @@ impl Cpu {
         }
     }
 
+    // sets logged_instruction to last instruction if cpu debug
+    // mode is enabled
     pub fn log_instr(&mut self, opcode: &Opcode) {
         if !self.debug {
             return;
@@ -273,9 +280,9 @@ impl Cpu {
             self.logged_instruction.push_str("   ");
         }
 
-        self.logged_instruction.push_str(&format!(" {} ", opcode.name()));
+        self.logged_instruction
+            .push_str(&format!(" {} ", opcode.name()));
 
-        // TODO: Something here is messing up the cpu state
         let end_val: usize = match opcode.name() {
             OpcodeName::Bcc
             | OpcodeName::Bcs
@@ -309,6 +316,7 @@ impl Cpu {
             | OpcodeName::Ror
             | OpcodeName::Inc
             | OpcodeName::Dec => {
+                // TODO: Something here is messing up the cpu state
                 if let AddressingMode::Accumulator = opcode.mode() {
                     0
                 } else {
@@ -319,11 +327,12 @@ impl Cpu {
                 }
             }
             OpcodeName::Jmp => {
+                // TODO: Something here is messing up the cpu state
                 if let AddressingMode::Absolute = opcode.mode() {
                     0
                 } else {
-                    self.r_pc += 1;
                     use_suffix = true;
+                    self.r_pc += 1;
                     self.get_address(opcode.mode()).into()
                 }
             }
@@ -337,10 +346,11 @@ impl Cpu {
                 self.logged_instruction.push('A');
             }
             AddressingMode::Absolute => {
-                self.logged_instruction.push_str(&format!("${:02X}{:02X}", args[2], args[1]));
+                self.logged_instruction
+                    .push_str(&format!("${:02X}{:02X}", args[2], args[1]));
                 if use_suffix {
-                    self.logged_instruction.push_str(&format!(" = {end_val:02X}"));
-                } else {
+                    self.logged_instruction
+                        .push_str(&format!(" = {end_val:02X}"));
                 }
             }
             AddressingMode::AbsoluteX => {
@@ -348,10 +358,7 @@ impl Cpu {
                 let addr = self.get_address(opcode.mode());
                 self.logged_instruction.push_str(&format!(
                     "${:02X}{:02X},X @ {:04X} = {:02X}",
-                    args[2],
-                    args[1],
-                    addr,
-                    end_val
+                    args[2], args[1], addr, end_val
                 ));
             }
             AddressingMode::AbsoluteY => {
@@ -359,17 +366,18 @@ impl Cpu {
                 let addr = self.get_address(opcode.mode());
                 self.logged_instruction.push_str(&format!(
                     "${:02X}{:02X},Y @ {:04X} = {:02X}",
-                    args[2],
-                    args[1],
-                    addr,
-                    end_val
+                    args[2], args[1], addr, end_val
                 ));
             }
             AddressingMode::Immediate => {
-                self.logged_instruction.push_str(&format!("#${:02X}", args[1]));
+                self.logged_instruction
+                    .push_str(&format!("#${:02X}", args[1]));
             }
             AddressingMode::Indirect => {
-                self.logged_instruction.push_str(&format!("(${:02X}{:02X}) = {:04X}", args[2], args[1], end_val));
+                self.logged_instruction.push_str(&format!(
+                    "(${:02X}{:02X}) = {:04X}",
+                    args[2], args[1], end_val
+                ));
             }
             AddressingMode::IndirectX => {
                 let addr1: u8 = args[1].wrapping_add(self.r_x);
@@ -377,10 +385,7 @@ impl Cpu {
                 let indirect_x_ptr = self.indirect_x_ptr();
                 self.logged_instruction.push_str(&format!(
                     "(${:02X},X) @ {:02X} = {:04X} = {:02X}",
-                    args[1],
-                    addr1,
-                    indirect_x_ptr,
-                    end_val
+                    args[1], addr1, indirect_x_ptr, end_val
                 ));
             }
             AddressingMode::IndirectY => {
@@ -393,31 +398,27 @@ impl Cpu {
             }
             AddressingMode::ZeroPage => {
                 let val = self.read(self.r_pc + 1);
-                self.logged_instruction.push_str(&format!("${val:02X} = {end_val:02X}"));
+                self.logged_instruction
+                    .push_str(&format!("${val:02X} = {end_val:02X}"));
             }
             AddressingMode::ZeroPageX => {
                 let val = self.read(self.r_pc + 1).wrapping_add(self.r_x);
                 self.logged_instruction.push_str(&format!(
                     "${:02X},X @ {:02X} = {:02X}",
-                    args[1],
-                    val,
-                    end_val
+                    args[1], val, end_val
                 ));
             }
             AddressingMode::ZeroPageY => {
                 let val = self.read(self.r_pc + 1).wrapping_add(self.r_y);
                 self.logged_instruction.push_str(&format!(
                     "${:02X},Y @ {:02X} = {:02X}",
-                    args[1],
-                    val,
-                    end_val
+                    args[1], val, end_val
                 ));
             }
             AddressingMode::Relative => {
                 self.logged_instruction.push_str(&format!("${end_val:04X}"));
             }
-            AddressingMode::Implicit => {
-            }
+            AddressingMode::Implicit => {}
         }
 
         self.r_pc = temp_pc;
@@ -425,6 +426,7 @@ impl Cpu {
         self.bus.borrow_mut().set_cpu_debug_read(false);
     }
 
+    // gets status flags as a u8
     fn get_p(&self, f_b: bool) -> u8 {
         let n_flag: u8 = u8::from(self.f_n);
         let v_flag: u8 = u8::from(self.f_v);
@@ -444,6 +446,7 @@ impl Cpu {
             | c_flag
     }
 
+    // sets status flags from a u8
     fn set_p(&mut self, flags: u8, update_i_now: bool) {
         self.f_c = (flags & 0x01) > 0;
         self.f_z = (flags & 0x02) > 0;
@@ -459,11 +462,13 @@ impl Cpu {
         }
     }
 
+    // helper to update zero and negative flag
     fn update_zn_flags(&mut self, value: u8) {
         self.f_z = value == 0;
         self.f_n = (value & 0x80) > 0;
     }
 
+    // cmp opcode
     fn compare(&mut self, reg: u8, mode: AddressingMode) {
         let addr = self.get_address(mode);
         let value = self.read(addr);
@@ -475,6 +480,7 @@ impl Cpu {
         }
     }
 
+    // calculates address for branching instructions
     fn calculate_branch_addr(&mut self, offset: u8) -> u16 {
         let mut addr = self.r_pc as i16;
         if offset & 0x80 > 0 {
@@ -487,6 +493,7 @@ impl Cpu {
         (addr as u16).wrapping_add(1)
     }
 
+    // handles all branching opcodes
     fn branch(&mut self, op_name: OpcodeName) {
         let mut branch = false;
         match op_name {
@@ -547,19 +554,23 @@ impl Cpu {
         }
     }
 
+    // push a value onto the nes stack
     fn push_stack(&mut self, value: u8) {
         let addr = (self.r_sp as u16) + 0x0100;
         self.write(addr, value);
         self.r_sp = self.r_sp.wrapping_sub(1);
     }
 
+    // pop a value from the nes stack
     fn pop_stack(&mut self) -> u8 {
         self.r_sp = self.r_sp.wrapping_add(1);
         let addr = (self.r_sp as u16) + 0x0100;
         self.read(addr)
     }
 
-    // instructions
+    // ------------
+    // all instructions prefixed with an 'i' are instructions
+    // ------------
     fn i_lda(&mut self, mode: AddressingMode) {
         let addr = self.get_address(mode);
         self.r_a = self.read(addr);
@@ -804,11 +815,14 @@ impl Cpu {
         self.r_pc = addr;
     }
 
+    // tick the cpu one instuction
+    // fetch, decode, execute all in one
     pub fn tick(&mut self) -> usize {
         self.page_crossed = false;
-        // fetch opcode
+        // 'fetch' next opcode
         let code = self.read(self.r_pc);
 
+        // 'decode', grab opcode from hashmap, panic otherwise
         let opcode = self
             .opcodes
             .get(&code)
@@ -819,6 +833,7 @@ impl Cpu {
 
         self.r_pc += 1;
 
+        // 'execute' instruction
         match opcode.name() {
             OpcodeName::Lda => self.i_lda(opcode.mode()),
             OpcodeName::Sta => self.i_sta(opcode.mode()),
@@ -918,10 +933,12 @@ impl Cpu {
             OpcodeName::Nop => (),
         }
 
+        // keep track of cycles passsed
         self.cycles += opcode.cycles();
         opcode.cycles()
     }
 
+    // TODO: figure out what to do with this
     fn poll_irq(&mut self) {
         // Do something here
 
@@ -932,6 +949,7 @@ impl Cpu {
         }
     }
 
+    // resets emulator to power on state
     pub fn reset(&mut self) {
         self.r_pc = 0xFFFC;
         self.r_sp = 0xFD;
@@ -943,7 +961,7 @@ impl Cpu {
 
         self.cycles = 5;
         // TODO: remove this when not using nestest
-        // self.r_pc = 0xC000; 
+        // self.r_pc = 0xC000;
         // self.cycles += 2;
     }
 
