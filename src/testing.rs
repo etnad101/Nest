@@ -127,7 +127,10 @@ pub fn run_json_tests(emulator: &mut Emulator) {
     // set json test mode, so the emulator uses a full 64kb of
     // readable and writable ram instead of memory normal
     // nes cpu memory map
-    emulator.set_debug_flag(emulator::DebugFlag::Json);
+    let debug_ctx = emulator.debug_ctx();
+    debug_ctx
+        .borrow_mut()
+        .set_debug_flag(emulator::debug::DebugFlag::Json);
 
     // iterate through all files in test directory
     let dir = fs::read_dir("./json_tests").unwrap();
@@ -160,4 +163,3 @@ pub fn run_json_tests(emulator: &mut Emulator) {
         }
     }
 }
-

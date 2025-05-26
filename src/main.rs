@@ -1,10 +1,19 @@
 mod emulator;
+mod frame_buffer;
 mod gui;
 mod testing;
 
-use emulator::cartridge::Cartridge;
-use emulator::{DebugFlag, Emulator};
+use emulator::debug::DebugFlag;
+use emulator::{cartridge::Cartridge, Emulator};
 use gui::NestApp;
+
+/*
+* TODO:
+* - move all debugging functions into DebugContext
+* - break cpu into smaller files
+* - add breakpoints for things like pc in DebugContext
+* - handle single tick, frame tick and run based on debug state
+*/
 
 const WINDOW_TITLE: &str = "Nest";
 const RUN_JSON_TEST: bool = false;
@@ -20,7 +29,10 @@ fn main() {
     }
 
     // enable debugging modes
-    emulator.set_debug_flags(vec![DebugFlag::Ppu, DebugFlag::Cpu]);
+    let debug_ctx = emulator.debug_ctx();
+    debug_ctx
+        .borrow_mut()
+        .set_debug_flags(vec![DebugFlag::Ppu, DebugFlag::Cpu]);
 
     // load cartridge from file
     let cartridge = Cartridge::new("./roms/DonkeyKong.nes".to_string()).unwrap();

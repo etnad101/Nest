@@ -2,10 +2,15 @@ mod apu;
 mod bus;
 pub mod cartridge;
 pub mod cpu;
+pub mod debug;
 mod io;
 mod ppu;
 
+use cpu::{BreakpointType, CpuStatus};
+use debug::DebugContext;
+
 use crate::emulator::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
+use crate::frame_buffer::FrameBuffer;
 use std::{cell::RefCell, rc::Rc};
 
 pub const NES_WIDTH: usize = 256;
@@ -13,54 +18,6 @@ pub const NES_HEIGHT: usize = 240;
 pub const PATTERN_TABLE_WIDTH: usize = 8 * 16;
 pub const PATTERN_TABLE_HEIGHT: usize = 8 * 32;
 pub const MAX_CYCLES_PER_FRAME: usize = cpu::CLOCK_SPEED / 60;
-
-// u32 vec with basic getters and setters
-pub struct FrameBuffer {
-    buf: Vec<u32>,
-}
-
-impl FrameBuffer {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            buf: vec![0; width * height],
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.buf.is_empty()
-    }
-
-    // read single value at index
-    pub fn read(&self, index: usize) -> u32 {
-        self.buf[index]
-    }
-
-    // write single value at index
-    pub fn write(&mut self, index: usize, value: u32) {
-        self.buf[index] = value;
-    }
-
-    // get ref to u32 vec
-    pub fn raw(&self) -> &Vec<u32> {
-        &self.buf
-    }
-
-    // returns rgb u8 vec
-    pub fn rgb(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(self.buf.len() * 3);
-        for &pixel in &self.buf {
-            let r = ((pixel & 0xFF0000) >> 16) as u8;
-            let g = ((pixel & 0x00FF00) >> 8) as u8;
-            let b = (pixel & 0x0000FF) as u8;
-
-            // Push the RGB components to the result vector
-            result.push(r);
-            result.push(g);
-            result.push(b);
-        }
-        result
-    }
-}
 
 // struct to cleanly pass atround cpu state
 pub struct CpuState {
@@ -79,93 +36,49 @@ pub struct CpuState {
     pub p: u8,
 }
 
-#[derive(PartialEq, Eq)]
-pub enum DebugFlag {
-    Cpu,
-    Ppu,
-    Json,
-}
-
+#[allow(unused)]
 pub struct Emulator {
-    bus: Rc<RefCell<Bus>>,
     cpu: Cpu,
+    bus: Rc<RefCell<Bus>>,
+    debug_ctx: Rc<RefCell<DebugContext>>,
 
     running: bool,
-    debug: Vec<DebugFlag>,
     cycles_this_frame: usize,
 }
 
+#[allow(unused)]
 impl Emulator {
     pub fn new() -> Self {
-        let bus = Rc::new(RefCell::new(Bus::new()));
+        let debug_ctx = Rc::new(RefCell::new(DebugContext::new()));
+        let bus = Rc::new(RefCell::new(Bus::new(debug_ctx.clone())));
 
         Self {
-            debug: vec![],
+            cpu: Cpu::new(bus.clone(), debug_ctx.clone()),
+            bus,
+            debug_ctx,
+
             running: false,
-            bus: bus.clone(),
-            cpu: Cpu::new(bus),
             cycles_this_frame: 0,
         }
     }
 
-    // helper function to set debug mode for all components
-    fn update_internal_debug_mode(&mut self) {
-        self.bus.borrow_mut().json_test_mode = false;
-        self.cpu.set_debug_mode(false);
-        self.bus.borrow_mut().set_ppu_debug_mode(false);
-
-        for mode in &self.debug {
-            match mode {
-                DebugFlag::Json => {
-                    self.bus.borrow_mut().json_test_mode = true;
-                    return;
-                }
-                DebugFlag::Cpu => self.cpu.set_debug_mode(true),
-                DebugFlag::Ppu => self.bus.borrow_mut().set_ppu_debug_mode(true),
-            }
-        }
-    }
-
-    pub fn set_debug_flags(&mut self, debug: Vec<DebugFlag>) {
-        self.debug = debug;
-        self.update_internal_debug_mode();
-    }
-
-    pub fn set_debug_flag(&mut self, flag: DebugFlag) {
-        if !self.debug.contains(&flag) {
-            self.debug.push(flag);
-        }
-        self.update_internal_debug_mode();
-    }
-
-    pub fn clear_debug_flag(&mut self, flag: &DebugFlag) {
-        self.debug.retain(|x| x != flag);
-        self.update_internal_debug_mode();
-    }
-
-    pub fn toggle_debug_flag(&mut self, flag: DebugFlag) {
-        if self.debug.contains(&flag) {
-            self.clear_debug_flag(&flag);
-        } else {
-            self.set_debug_flag(flag);
-        }
+    pub fn debug_ctx(&self) -> Rc<RefCell<DebugContext>> {
+        self.debug_ctx.clone()
     }
 
     pub fn running(&self) -> bool {
         self.running
     }
 
+    pub fn start(&mut self) {
+        self.running = true;
+    }
+
     pub fn stop(&mut self) {
         self.running = false;
     }
 
-    // get last instruction ecexuted by cpu
-    pub fn get_logged_instr(&self) -> String {
-        self.cpu.get_logged_instr()
-    }
-
     // reset cpu
-    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.cpu.reset();
     }
@@ -176,11 +89,15 @@ impl Emulator {
     }
 
     // tick emulator one instruction
-    pub fn tick<T>(&mut self, handle_display: &mut T)
+    pub fn tick<T>(&mut self, handle_display: &mut T) -> Option<BreakpointType>
     where
         T: FnMut(&FrameBuffer, FrameBuffer),
     {
-        let cycles = self.cpu.tick();
+        let cycles = match self.cpu.tick() {
+            CpuStatus::Normal(cycles) => cycles,
+            CpuStatus::BreakpointHit(bp) => return Some(bp),
+        };
+
         self.cycles_this_frame += cycles;
 
         for _ in 0..cycles * 3 {
@@ -197,15 +114,20 @@ impl Emulator {
                 self.bus.borrow().get_pattern_table(),
             );
         }
+
+        None
     }
 
     // tick emulator to the next frame
-    pub fn step_frame<T>(&mut self, handle_display: &mut T)
+    pub fn step_frame<T>(&mut self, handle_display: &mut T) -> Option<BreakpointType>
     where
         T: FnMut(&FrameBuffer, FrameBuffer),
     {
         while self.cycles_this_frame < MAX_CYCLES_PER_FRAME {
-            let cycles = self.cpu.tick();
+            let cycles = match self.cpu.tick() {
+                CpuStatus::Normal(cycles) => cycles,
+                CpuStatus::BreakpointHit(bp) => return Some(bp),
+            };
             self.cycles_this_frame += cycles;
 
             for _ in 0..cycles * 3 {
@@ -221,19 +143,62 @@ impl Emulator {
             self.bus.borrow().get_frame(),
             self.bus.borrow().get_pattern_table(),
         );
+        None
     }
 
     // run while emulator is set to running
-    pub fn run_with_callback<T>(&mut self, handle_display: &mut T)
+    // This should be used as its own event loop
+    pub fn run_standalone<T>(&mut self, handle_display: &mut T) -> Option<BreakpointType>
     where
         T: FnMut(&FrameBuffer, FrameBuffer),
     {
-        self.cpu.reset();
         self.running = true;
 
         while self.running {
-            self.tick(handle_display);
+            if let Some(bp) = self.tick(handle_display) {
+                self.running = false;
+                return Some(bp);
+            };
         }
+        None
+    }
+
+    // to be run in another loop
+    pub fn run_in_loop<T>(&mut self, handle_display: &mut T) -> Option<BreakpointType>
+    where
+        T: FnMut(&FrameBuffer, FrameBuffer),
+    {
+        if self.running {
+            if self
+                .debug_ctx
+                .borrow()
+                .flag_enabled(&debug::DebugFlag::Step(debug::StepMode::Frame))
+            {
+                self.running = false;
+                if let Some(bp) = self.step_frame(handle_display) {
+                    return Some(bp);
+                };
+                return Some(BreakpointType::AfterFrame);
+            }
+
+            if self
+                .debug_ctx
+                .borrow()
+                .flag_enabled(&debug::DebugFlag::Step(debug::StepMode::Instruction))
+            {
+                self.running = false;
+                if let Some(bp) = self.tick(handle_display) {
+                    return Some(bp);
+                };
+                return Some(BreakpointType::AfterInstruction);
+            }
+
+            if let Some(bp) = self.step_frame(handle_display) {
+                self.running = false;
+                return Some(bp);
+            };
+        }
+        None
     }
 
     /* functions to expose internal functions */

@@ -1,10 +1,32 @@
 pub mod opcode;
+
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{bus::Bus, CpuState};
+use super::{
+    bus::Bus,
+    debug::{DebugContext, DebugFlag},
+    CpuState,
+};
 use opcode::{Opcode, OpcodeName};
 
 pub const CLOCK_SPEED: usize = 21_441_960;
+
+pub enum BreakpointType {
+    AfterInstruction,
+    AfterFrame,
+    Pc(u16),
+    Opcode(u8),
+    OpcodeGroup(OpcodeName),
+    ReadFrom(u16),
+    ReadValue(u8),
+    WriteTo(u16),
+    WriteValue(u8),
+}
+
+pub enum CpuStatus {
+    Normal(usize),
+    BreakpointHit(BreakpointType),
+}
 
 #[derive(Clone, Copy)]
 pub enum AddressingMode {
@@ -25,8 +47,6 @@ pub enum AddressingMode {
 
 pub struct Cpu {
     opcodes: HashMap<u8, Opcode>,
-
-    debug: bool,
 
     bus: Rc<RefCell<Bus>>,
     cycles: usize,
@@ -49,15 +69,14 @@ pub struct Cpu {
 
     pending_iflag_value: bool,
     pending_iflag_update: bool,
-    logged_instruction: String,
+    debug_ctx: Rc<RefCell<DebugContext>>,
 }
 
 impl Cpu {
-    pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
+    pub fn new(bus: Rc<RefCell<Bus>>, debug_ctx: Rc<RefCell<DebugContext>>) -> Self {
         Self {
             opcodes: Opcode::get_opcode_map(),
 
-            debug: false,
             bus,
             cycles: 0,
             page_crossed: false,
@@ -77,7 +96,8 @@ impl Cpu {
 
             pending_iflag_value: false,
             pending_iflag_update: false,
-            logged_instruction: String::new(),
+
+            debug_ctx,
         }
     }
 
@@ -109,16 +129,6 @@ impl Cpu {
         self.r_x = state.r_x;
         self.r_y = state.r_y;
         self.set_p(state.p, true);
-    }
-
-    // get string of last executes instruction
-    pub fn get_logged_instr(&self) -> String {
-        self.logged_instruction.clone()
-    }
-
-    // enable/disable debug mode
-    pub fn set_debug_mode(&mut self, debug: bool) {
-        self.debug = debug;
     }
 
     // print memory to stdout
@@ -256,32 +266,25 @@ impl Cpu {
 
     // sets logged_instruction to last instruction if cpu debug
     // mode is enabled
-    pub fn log_instr(&mut self, opcode: &Opcode) {
-        if !self.debug {
-            return;
-        }
-
+    pub fn generate_log(&mut self, opcode: &Opcode) -> String {
         let temp_pc = self.r_pc;
         let mut use_suffix = false;
 
-        self.bus.borrow_mut().set_cpu_debug_read(true);
-
-        self.logged_instruction = format!("{:04X}  ", self.r_pc);
+        let mut instr = format!("{:04X}  ", self.r_pc);
 
         let mut args: [u8; 3] = [0; 3];
 
         for i in 0..opcode.bytes() {
             let byte = self.read(self.r_pc + i);
-            self.logged_instruction.push_str(&format!("{byte:02X} "));
+            instr.push_str(&format!("{byte:02X} "));
             args[i as usize] = byte;
         }
 
         for _ in 0..3 - opcode.bytes() {
-            self.logged_instruction.push_str("   ");
+            instr.push_str("   ");
         }
 
-        self.logged_instruction
-            .push_str(&format!(" {} ", opcode.name()));
+        instr.push_str(&format!(" {} ", opcode.name()));
 
         let end_val: usize = match opcode.name() {
             OpcodeName::Bcc
@@ -343,20 +346,18 @@ impl Cpu {
 
         match opcode.mode() {
             AddressingMode::Accumulator => {
-                self.logged_instruction.push('A');
+                instr.push('A');
             }
             AddressingMode::Absolute => {
-                self.logged_instruction
-                    .push_str(&format!("${:02X}{:02X}", args[2], args[1]));
+                instr.push_str(&format!("${:02X}{:02X}", args[2], args[1]));
                 if use_suffix {
-                    self.logged_instruction
-                        .push_str(&format!(" = {end_val:02X}"));
+                    instr.push_str(&format!(" = {end_val:02X}"));
                 }
             }
             AddressingMode::AbsoluteX => {
                 self.r_pc += 1;
                 let addr = self.get_address(opcode.mode());
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "${:02X}{:02X},X @ {:04X} = {:02X}",
                     args[2], args[1], addr, end_val
                 ));
@@ -364,17 +365,16 @@ impl Cpu {
             AddressingMode::AbsoluteY => {
                 self.r_pc += 1;
                 let addr = self.get_address(opcode.mode());
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "${:02X}{:02X},Y @ {:04X} = {:02X}",
                     args[2], args[1], addr, end_val
                 ));
             }
             AddressingMode::Immediate => {
-                self.logged_instruction
-                    .push_str(&format!("#${:02X}", args[1]));
+                instr.push_str(&format!("#${:02X}", args[1]));
             }
             AddressingMode::Indirect => {
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "(${:02X}{:02X}) = {:04X}",
                     args[2], args[1], end_val
                 ));
@@ -383,7 +383,7 @@ impl Cpu {
                 let addr1: u8 = args[1].wrapping_add(self.r_x);
                 self.r_pc = self.r_pc.wrapping_add(1);
                 let indirect_x_ptr = self.indirect_x_ptr();
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "(${:02X},X) @ {:02X} = {:04X} = {:02X}",
                     args[1], addr1, indirect_x_ptr, end_val
                 ));
@@ -391,39 +391,38 @@ impl Cpu {
             AddressingMode::IndirectY => {
                 self.r_pc = self.r_pc.wrapping_add(1);
                 let (addr2, addr1) = self.indirect_y_ptr();
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "(${:02X}),Y = {:04X} @ {:04X} = {:02X}",
                     args[1], addr1, addr2, end_val
                 ));
             }
             AddressingMode::ZeroPage => {
                 let val = self.read(self.r_pc + 1);
-                self.logged_instruction
-                    .push_str(&format!("${val:02X} = {end_val:02X}"));
+                instr.push_str(&format!("${val:02X} = {end_val:02X}"));
             }
             AddressingMode::ZeroPageX => {
                 let val = self.read(self.r_pc + 1).wrapping_add(self.r_x);
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "${:02X},X @ {:02X} = {:02X}",
                     args[1], val, end_val
                 ));
             }
             AddressingMode::ZeroPageY => {
                 let val = self.read(self.r_pc + 1).wrapping_add(self.r_y);
-                self.logged_instruction.push_str(&format!(
+                instr.push_str(&format!(
                     "${:02X},Y @ {:02X} = {:02X}",
                     args[1], val, end_val
                 ));
             }
             AddressingMode::Relative => {
-                self.logged_instruction.push_str(&format!("${end_val:04X}"));
+                instr.push_str(&format!("${end_val:04X}"));
             }
             AddressingMode::Implicit => {}
         }
 
         self.r_pc = temp_pc;
 
-        self.bus.borrow_mut().set_cpu_debug_read(false);
+        instr
     }
 
     // gets status flags as a u8
@@ -817,19 +816,31 @@ impl Cpu {
 
     // tick the cpu one instuction
     // fetch, decode, execute all in one
-    pub fn tick(&mut self) -> usize {
+    pub fn tick(&mut self) -> CpuStatus {
+        if self
+            .debug_ctx
+            .borrow()
+            .hit_breakpoint(BreakpointType::Pc(self.r_pc))
+        {
+            return CpuStatus::BreakpointHit(BreakpointType::Pc(self.r_pc));
+        }
+
         self.page_crossed = false;
         // 'fetch' next opcode
         let code = self.read(self.r_pc);
 
         // 'decode', grab opcode from hashmap, panic otherwise
-        let opcode = self
-            .opcodes
-            .get(&code)
-            .cloned()
-            .unwrap_or_else(|| panic!("Unknown opcode {:#04X} @ {:#06X}", code, self.r_pc));
+        let opcode = match self.opcodes.get(&code).cloned() {
+            Some(opcode) => opcode,
+            None => panic!("Unknown opcode {:#04X} @ {:#06X}", code, self.r_pc),
+        };
 
-        self.log_instr(&opcode);
+        if self.debug_ctx.borrow().flag_enabled(&DebugFlag::Cpu) {
+            self.debug_ctx.borrow_mut().cpu_debug_read = true;
+            let log = self.generate_log(&opcode);
+            self.debug_ctx.borrow_mut().cpu_debug_read = false;
+            self.debug_ctx.borrow_mut().log_instr(log);
+        }
 
         self.r_pc += 1;
 
@@ -935,7 +946,7 @@ impl Cpu {
 
         // keep track of cycles passsed
         self.cycles += opcode.cycles();
-        opcode.cycles()
+        CpuStatus::Normal(opcode.cycles())
     }
 
     // TODO: figure out what to do with this

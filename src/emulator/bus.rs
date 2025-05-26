@@ -1,4 +1,4 @@
-use super::{apu::Apu, cartridge::Cartridge, io::Io, ppu::Ppu, FrameBuffer};
+use super::{apu::Apu, cartridge::Cartridge, debug::DebugContext, io::Io, ppu::Ppu, FrameBuffer};
 use std::{cell::RefCell, rc::Rc};
 
 pub const RAM_SIZE: usize = 0x800;
@@ -9,23 +9,25 @@ pub struct Bus {
     ppu: Ppu,
     apu: Apu,
     io: Io,
+
     cartridge_inserted: bool,
     cartridge: Option<Rc<RefCell<Cartridge>>>,
     raw_mem: Box<[u8; 0x10000]>,
-    pub json_test_mode: bool,
+
+    debug_ctx: Rc<RefCell<DebugContext>>,
 }
 
 impl Bus {
-    pub fn new() -> Self {
+    pub fn new(debug_ctx: Rc<RefCell<DebugContext>>) -> Self {
         Self {
             wram: Box::new([0; RAM_SIZE]),
-            ppu: Ppu::new(),
+            ppu: Ppu::new(debug_ctx.clone()),
             apu: Apu::new(),
             io: Io::new(),
             cartridge_inserted: false,
             cartridge: None,
             raw_mem: Box::new([0; 0x10000]),
-            json_test_mode: false,
+            debug_ctx,
         }
     }
 
@@ -39,7 +41,11 @@ impl Bus {
 
     // mapped memory read for cpu
     pub fn cpu_read(&mut self, addr: u16) -> u8 {
-        if self.json_test_mode {
+        if self
+            .debug_ctx
+            .borrow()
+            .flag_enabled(&crate::emulator::debug::DebugFlag::Json)
+        {
             return self.raw_mem[addr as usize];
         }
 
@@ -76,7 +82,11 @@ impl Bus {
 
     // mapped memory write for cpu
     pub fn write(&mut self, addr: u16, value: u8) {
-        if self.json_test_mode {
+        if self
+            .debug_ctx
+            .borrow()
+            .flag_enabled(&crate::emulator::debug::DebugFlag::Json)
+        {
             return self.raw_mem[addr as usize] = value;
         }
         if addr < 0x2000 {
@@ -94,12 +104,6 @@ impl Bus {
         panic!("ERROR: Writing to something i haven't implemented yet")
     }
 
-    // make sure ppu dosen't update state when cpu is
-    // reading for debug purposes
-    pub fn set_cpu_debug_read(&mut self, mode: bool) {
-        self.ppu.cpu_debug_read = mode;
-    }
-
     // Expose PPU functions to Emulator
     pub fn tick_ppu(&mut self) {
         self.ppu.tick();
@@ -115,9 +119,5 @@ impl Bus {
 
     pub fn get_pattern_table(&self) -> FrameBuffer {
         self.ppu.pattern_table()
-    }
-
-    pub fn set_ppu_debug_mode(&mut self, mode: bool) {
-        self.ppu.set_debug_mode(mode)
     }
 }

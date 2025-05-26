@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{cartridge::Cartridge, FrameBuffer, NES_HEIGHT, NES_WIDTH};
+use super::{cartridge::Cartridge, debug::DebugContext, FrameBuffer, NES_HEIGHT, NES_WIDTH};
 
 const VRAM_SIZE: usize = 0x800;
 pub const PATTERN_TABLE_WIDTH: usize = 8 * 16;
@@ -53,13 +53,12 @@ pub struct Ppu {
     scanline: usize,
     dot: usize,
 
-    debug: bool,
     frame_buffer: FrameBuffer,
-    pub cpu_debug_read: bool,
+    debug_ctx: Rc<RefCell<DebugContext>>,
 }
 
 impl Ppu {
-    pub fn new() -> Self {
+    pub fn new(debug_ctx: Rc<RefCell<DebugContext>>) -> Self {
         Self {
             vram: Box::new([0; VRAM_SIZE]),
             cartridge: None,
@@ -80,13 +79,8 @@ impl Ppu {
             dot: 0,
 
             frame_buffer: FrameBuffer::new(NES_WIDTH, NES_HEIGHT),
-            debug: false,
-            cpu_debug_read: false,
+            debug_ctx,
         }
-    }
-
-    pub fn set_debug_mode(&mut self, mode: bool) {
-        self.debug = mode;
     }
 
     pub fn set_cartridge(&mut self, cartridge: Option<Rc<RefCell<Cartridge>>>) {
@@ -99,7 +93,7 @@ impl Ppu {
             0x2001 => self.ppu_mask,
             0x2002 => {
                 let value = self.ppu_status;
-                if self.cpu_debug_read {
+                if self.debug_ctx.borrow().cpu_debug_read {
                     return value;
                 }
                 self.r_w = 0;
@@ -233,7 +227,11 @@ impl Ppu {
     // does not need to run every frame
     // TODO: make more efficient, dont need to update every frame
     pub fn pattern_table(&self) -> FrameBuffer {
-        if !self.debug {
+        if !self
+            .debug_ctx
+            .borrow()
+            .flag_enabled(&super::debug::DebugFlag::Ppu)
+        {
             return FrameBuffer::new(0, 0);
         }
 
