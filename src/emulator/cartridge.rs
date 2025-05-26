@@ -1,7 +1,7 @@
 use std::{error::Error, fs};
 
 const PRG_ROM_SIZE_ADDR: usize = 4;
-const CHR_ROM_SIZE_ADDR: usize = 4;
+const CHR_ROM_SIZE_ADDR: usize = 5;
 
 const PRG_ROM_CHUNK_SIZE: usize = 0x4000;
 const CHR_ROM_CHUNK_SIZE: usize = 0x2000;
@@ -45,6 +45,11 @@ impl Cartridge {
         }
 
         // extract program size and character rom size from header
+
+        if rom[CHR_ROM_SIZE_ADDR] == 0 {
+            panic!("Rom header says its using chr RAM, instrad of ROM")
+        }
+
         let prg_rom_size = rom[PRG_ROM_SIZE_ADDR] as usize * PRG_ROM_CHUNK_SIZE;
         let chr_rom_size = rom[CHR_ROM_SIZE_ADDR] as usize * CHR_ROM_CHUNK_SIZE;
 
